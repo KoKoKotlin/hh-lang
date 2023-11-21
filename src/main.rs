@@ -11,10 +11,10 @@ fn load_source_code_file(path: &str) -> std::io::Result<String> {
 }
 
 #[derive(Debug, Clone)]
-enum TokenKind<'a> {
-    Ident(&'a str),
-    String(&'a str),
-    Number(&'a str),
+enum TokenKind {
+    Ident(String),
+    String(String),
+    Number(String),
 
     // single symbol tokens
     Equals,
@@ -44,13 +44,13 @@ enum TokenKind<'a> {
 }
 
 #[derive(Debug, Clone)]
-struct Token<'a> {
+struct Token {
     loc: usize,
-    kind: TokenKind<'a>,
+    kind: TokenKind,
 }
 
-impl<'a> Token<'a> {
-    pub fn new(loc: usize, kind: TokenKind<'a>) -> Self {
+impl Token {
+    pub fn new(loc: usize, kind: TokenKind) -> Self {
         Self {
             loc,
             kind
@@ -59,8 +59,8 @@ impl<'a> Token<'a> {
 }
 
 #[derive(Debug, Clone)]
-struct Tokenizer<'a> {
-    source_code: &'a str,
+struct Tokenizer {
+    source_code: String,
     current_loc: usize,
 }
 
@@ -69,8 +69,8 @@ enum TokenizerError {
     
 }
 
-impl<'a> Tokenizer<'a> {
-    pub fn new(source_code: &'a str) -> Self {
+impl Tokenizer {
+    pub fn new(source_code: String) -> Self {
         Self {
             source_code,
             current_loc: 0
@@ -90,7 +90,7 @@ impl<'a> Tokenizer<'a> {
                     // end string context and finalize string
                     if c == '\"' {
                         let string_slice = &self.source_code[self.current_loc..=self.current_loc+current_len];
-                        let string_token = Token::new(self.current_loc, TokenKind::String(string_slice));
+                        let string_token = Token::new(self.current_loc, TokenKind::String(string_slice.to_owned()));
                         self.current_loc += current_len + 1;
                         return Ok(Some(string_token));
                     } else {
@@ -141,8 +141,8 @@ impl<'a> Tokenizer<'a> {
                         let current_slice = &self.source_code[self.current_loc..=self.current_loc+current_len];
                         
                         // check for number or string
-                        let result: Token<'_> = if Self::is_number(current_slice) {
-                            Token::new(self.current_loc, TokenKind::Number(current_slice))
+                        let result: Token = if Self::is_number(current_slice) {
+                            Token::new(self.current_loc, TokenKind::Number(current_slice.to_owned()))
                         } else {
                             // if not number and not string => check for reserved and if not reserved => ident
                             Token::new(self.current_loc, Self::parse_ident(current_slice))
@@ -167,7 +167,7 @@ impl<'a> Tokenizer<'a> {
         c == '!' || c == '<' || c == '>'
     }
 
-    fn check_composite(first_char: char, second_char: char) -> Option<TokenKind<'a>> {
+    fn check_composite(first_char: char, second_char: char) -> Option<TokenKind> {
         match (first_char, second_char) {
             ('!', '=') => Some(TokenKind::NotEqual),
             ('<', '=') => Some(TokenKind::LessOrEqual),
@@ -188,7 +188,7 @@ impl<'a> Tokenizer<'a> {
         token.parse::<u32>().is_ok()
     }
 
-    fn parse_one_symbol_token(c: char) -> TokenKind<'a> {
+    fn parse_one_symbol_token(c: char) -> TokenKind {
         match c {
             ',' => TokenKind::Comma,
             ';' => TokenKind::Semicolon,
@@ -205,7 +205,7 @@ impl<'a> Tokenizer<'a> {
         }
     }
 
-    pub fn parse_ident(slice: &'a str) -> TokenKind<'a> {
+    pub fn parse_ident(slice: &str) -> TokenKind {
         match slice {
             "func" => TokenKind::Func,
             "start" => TokenKind::Start,
@@ -213,21 +213,28 @@ impl<'a> Tokenizer<'a> {
             "or" => TokenKind::Or,
             "and" => TokenKind::And,
             "xor" => TokenKind::Xor,
-            _ => TokenKind::Ident(slice),
+            _ => TokenKind::Ident(slice.to_owned()),
         }
     }
 
 }
 
-fn tokenize(source_code: &str) {
-    let mut tokenizer = Tokenizer::new(source_code);
-    while let Ok(Some(token)) = tokenizer.next_token() {
-        println!("{:?}", token);
+fn tokenize<'a>(source_code: &'a str) -> Result<Vec<Token>, TokenizerError> {
+    let mut tokenizer = Tokenizer::new(source_code.to_owned());
+    let mut tokens: Vec<Token> = Vec::new();
+    loop {
+        if let Some(token) = tokenizer.next_token()? {
+            tokens.push(token);
+        } else {
+            break;
+        }
     }
+
+    return Ok(tokens);
 }
 
 fn main() {
     let source_code = load_source_code_file(SOURCE_FILE_PATH).unwrap();
-    println!("{source_code}");
-    tokenize(&source_code);
+    let tokens = tokenize(&source_code);
+    println!("{:?}", tokens);
 }
