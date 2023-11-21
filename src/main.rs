@@ -15,6 +15,8 @@ enum TokenKind<'a> {
     Ident(&'a str),
     String(&'a str),
     Number(&'a str),
+
+    // single symbol tokens
     Equals,
     Plus,
     Minus,
@@ -23,6 +25,22 @@ enum TokenKind<'a> {
     OpeningBraket,
     ClosingBraket,
     Comma,
+    LessThan,
+    GreaterThan,
+    Bang,
+
+    // composite tokens
+    LessOrEqual,
+    GreaterOrEqual,
+    NotEqual,
+
+    // reserved keywords
+    Func,
+    Start,
+    End,
+    Or,
+    And,
+    Xor,
 }
 
 #[derive(Debug, Clone)]
@@ -88,21 +106,32 @@ impl<'a> Tokenizer<'a> {
                 }
 
                 // skip whitespace
-                if self.is_white_space(c) {
+                if Self::is_white_space(c) {
                     self.current_loc += 1;
                     continue;
                 }
                 
                 // one symbol tokens
-                if self.is_special_token(c) {
+                if Self::is_special_token(c) {
+                    // check for composites like <=, >=, !=
+                    if Self::can_be_composite(c) {
+                        if let Some(next) = char_iterator.peek() {
+                            if let Some(token_kind) = Self::check_composite(c, *next) {
+                                let token = Token::new(self.current_loc, token_kind);
+                                self.current_loc += 2;
+                                return Ok(Some(token));
+                            }
+                        }
+                    }
+
+                    let kind = Self::parse_one_symbol_token(c);
+                    let token = Token::new(self.current_loc, kind);
                     self.current_loc += 1;
-                    let kind = self.parse_one_symbol_token(c);
-                    let token = Token::new(self.current_loc - 1, kind);
                     return Ok(Some(token));
                 } else {
                     let finish_token = if let Some(next) = char_iterator.peek() {
                         // look if the next token is whitespace or a special token
-                        self.is_special_token(*next) || self.is_white_space(*next)
+                        Self::is_special_token(*next) || Self::is_white_space(*next)
                     } else {
                         // finish the token because end of input
                         true
@@ -112,13 +141,11 @@ impl<'a> Tokenizer<'a> {
                         let current_slice = &self.source_code[self.current_loc..=self.current_loc+current_len];
                         
                         // check for number or string
-                        let result: Token<'_> = if self.is_number(current_slice) {
+                        let result: Token<'_> = if Self::is_number(current_slice) {
                             Token::new(self.current_loc, TokenKind::Number(current_slice))
-                        } else if self.is_string(current_slice) {
-                            Token::new(self.current_loc, TokenKind::String(current_slice))
                         } else {
-                            // if not number and not string => ident
-                            Token::new(self.current_loc, TokenKind::Ident(current_slice))
+                            // if not number and not string => check for reserved and if not reserved => ident
+                            Token::new(self.current_loc, Self::parse_ident(current_slice))
                         };
 
                         self.current_loc += current_len + 1;
@@ -136,23 +163,32 @@ impl<'a> Tokenizer<'a> {
         }
     }
 
-    fn is_special_token(&self, c: char) -> bool {
-        c == ',' || c == '+' || c == '-' || c == '*' || c == '=' || c == '[' || c == ']' || c == ';'
+    fn can_be_composite(c: char) -> bool {
+        c == '!' || c == '<' || c == '>'
     }
 
-    fn is_white_space(&self, c: char) -> bool {
+    fn check_composite(first_char: char, second_char: char) -> Option<TokenKind<'a>> {
+        match (first_char, second_char) {
+            ('!', '=') => Some(TokenKind::NotEqual),
+            ('<', '=') => Some(TokenKind::LessOrEqual),
+            ('>', '=') => Some(TokenKind::GreaterOrEqual),
+            _ => None,
+        }
+    }
+
+    fn is_special_token(c: char) -> bool {
+        c == ',' || c == '+' || c == '-' || c == '*' || c == '=' || c == '[' || c == ']' || c == ';' || c == '<' || c == '>' || c == '|'
+    }
+
+    fn is_white_space(c: char) -> bool {
         c == ' ' || c == '\t' || c == '\n'
     }
 
-    fn is_number(&self, token: &str) -> bool {
+    fn is_number(token: &str) -> bool {
         token.parse::<u32>().is_ok()
     }
 
-    fn is_string(&self, token: &str) -> bool {
-        token.starts_with("\"") && token.ends_with("\"") && !token[1..token.len()-1].contains("\"") && token.len() >= 2
-    }
-
-    fn parse_one_symbol_token(&self, c: char) -> TokenKind {
+    fn parse_one_symbol_token(c: char) -> TokenKind<'a> {
         match c {
             ',' => TokenKind::Comma,
             ';' => TokenKind::Semicolon,
@@ -162,7 +198,22 @@ impl<'a> Tokenizer<'a> {
             '=' => TokenKind::Equals,
             '[' => TokenKind::OpeningBraket,
             ']' => TokenKind::ClosingBraket,
+            '<' => TokenKind::LessThan,
+            '>' => TokenKind::GreaterThan,
+            '!' => TokenKind::Bang,
             _ => unreachable!(),
+        }
+    }
+
+    pub fn parse_ident(slice: &'a str) -> TokenKind<'a> {
+        match slice {
+            "func" => TokenKind::Func,
+            "start" => TokenKind::Start,
+            "end" => TokenKind::End,
+            "or" => TokenKind::Or,
+            "and" => TokenKind::And,
+            "xor" => TokenKind::Xor,
+            _ => TokenKind::Ident(slice),
         }
     }
 
