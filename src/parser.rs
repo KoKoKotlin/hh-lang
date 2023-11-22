@@ -27,7 +27,7 @@ const MULITPLICATIVE_OPERATORS: [TokenKind; 1] = [
 /** Current Grammar:
  * Program   => Block == Vec<Statment>
  * Block     => [ "let" IDENT "=" Literal ";" ]
- *              [ "var" IDENT { "=" Literal } ";" ]
+ *              [ "var" IDENT { "=" Literal } {, IDENT {= Literal}} ";" ]
  *              Statement
  * Statement => IDENT "=" Expr ";"
  * Expr      => {UN_OP} Term { ADD_OP term } ";"
@@ -92,24 +92,35 @@ impl Parser {
     fn var_decl(&mut self) -> Result<Statement, ()> {
         use TokenKind::*;
         
+        let mut var_decls: Vec<(Token, Option<Literal>)> = vec![];
         self.consume(&[Var]).ok_or(())?;
-        let ident = self.consume(&[Ident]).ok_or(())?;
-        let literal = match self.look_ahead.as_ref() {
-            Some(token) => if token.kind == Equals {
-                self.consume(&[Equals]).ok_or(())?;
-                let literal = self.literal()?;
-                Some(literal)
-            } else {
-                None
-            },
-            None => {
-                consume_error(None, &[Equals, Semicolon]);
-                return Err(());
-            },
-        };
+        
+        loop {
+            let ident = self.consume(&[Ident]).ok_or(())?;
+            let literal = match self.look_ahead.as_ref() {
+                Some(token) => if token.kind == Equals {
+                    self.consume(&[Equals]).ok_or(())?;
+                    let literal = self.literal()?;
+                    Some(literal)
+                } else {
+                    None
+                },
+                None => {
+                    consume_error(None, &[Equals, Semicolon]);
+                    return Err(());
+                },
+            };
+
+            var_decls.push((ident, literal));
+
+            match self.peek() {
+                Some(kind) if kind == Comma => self.consume(&[Comma]).ok_or(())?,
+                _ => break,
+            };
+        }
 
         self.consume(&[Semicolon]).ok_or(())?; 
-        return Ok(Statement::VarDecl(ident, literal));
+        return Ok(Statement::VarDecl(var_decls));
     }
 
     fn reassign(&mut self) -> Result<Statement, ()> {
