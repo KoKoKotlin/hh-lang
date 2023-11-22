@@ -1,6 +1,6 @@
 use std::{fs::File, io::Read};
 
-use crate::tokenizer::tokenize;
+use crate::tokenizer::Tokenizer;
 
 mod tokenizer;
 mod parser;
@@ -18,6 +18,9 @@ fn load_source_code_file(path: &str) -> std::io::Result<String> {
 
 fn main() {
     let source_code = load_source_code_file(SOURCE_FILE_PATH).unwrap();
-    let tokens = tokenize(&source_code);
-    println!("{:?}", tokens);
+    let mut tokenizer = Tokenizer::new(source_code.to_owned());
+    
+    while let Some(token) = tokenizer.next_token() {
+        println!("{:?}", token);
+    }
 }

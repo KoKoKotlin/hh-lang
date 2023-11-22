@@ -1,9 +1,11 @@
+use std::{fmt::Debug, str::Chars};
+
 
 #[derive(Debug, Clone)]
 pub enum TokenKind {
-    Ident(String),
-    String(String),
-    Number(String),
+    Ident,
+    String,
+    Number,
 
     // single symbol tokens
     Equals,
@@ -41,191 +43,189 @@ pub enum TokenKind {
 pub struct Token {
     loc: usize,
     kind: TokenKind,
+    symbols: String,
 }
 
 impl Token {
-    pub fn new(loc: usize, kind: TokenKind) -> Self {
+    pub fn new(loc: usize, kind: TokenKind, symbols: String) -> Self {
         Self {
             loc,
-            kind
+            kind,
+            symbols
         }
     }
 }
 
-#[derive(Debug, Clone)]
+struct TokenizerRule {
+    rule: Box<dyn Fn(Chars) -> (usize, Option<TokenKind>)>,
+    name: &'static str,
+}
+
+impl Debug for TokenizerRule {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TokenizerRule").field("name", &self.name).finish()
+    }
+}
+
+#[derive(Debug)]
 pub struct Tokenizer {
     source_code: String,
     current_loc: usize,
+    rules: Vec<TokenizerRule>,
 }
 
-#[derive(Debug, Clone)]
-pub enum TokenizerError {}
+fn whitespace(char_iter: Chars) -> (usize, Option<TokenKind>) {
+    for (idx, char) in char_iter.enumerate() {
+        if !char.is_whitespace() { return (idx, None); }
+    }
+
+    (0, None)
+}
+
+fn number(char_iter: Chars) -> (usize, Option<TokenKind>) {
+    for (idx, char) in char_iter.enumerate() {
+        if !char.is_numeric() {
+            return (idx, Some(TokenKind::Number));
+        }
+    }
+    
+    (0, None)
+}
+
+fn string(char_iter: Chars) -> (usize, Option<TokenKind>) {
+    for (idx, char) in char_iter.enumerate() {
+        if idx == 0 && char != '"' { return (0, None); }
+        if idx != 0 && char == '"' { return (idx + 1, Some(TokenKind::String)); }
+    }
+
+    (0, None)
+}
+
+fn is_operator_token(c: char) -> bool {
+    c == ',' || c == '+' || c == '-' || c == '*' || c == '=' || c == '[' || c == ']' || c == ';' || c == '<' || c == '>' || c == '!'
+}
+
+fn parse_one_symbol_token(c: char) -> TokenKind {
+    match c {
+        ',' => TokenKind::Comma,
+        ';' => TokenKind::Semicolon,
+        '+' => TokenKind::Plus,
+        '-' => TokenKind::Minus,
+        '*' => TokenKind::Times,
+        '=' => TokenKind::Equals,
+        '[' => TokenKind::OpeningBraket,
+        ']' => TokenKind::ClosingBraket,
+        '<' => TokenKind::LessThan,
+        '>' => TokenKind::GreaterThan,
+        '!' => TokenKind::Bang,
+        _ => unreachable!(),
+    }
+}
+
+fn parse_composite(first_char: char, second_char: char) -> Option<TokenKind> {
+    match (first_char, second_char) {
+        ('!', '=') => Some(TokenKind::NotEqual),
+        ('<', '=') => Some(TokenKind::LessOrEqual),
+        ('>', '=') => Some(TokenKind::GreaterOrEqual),
+        ('=', '=') => Some(TokenKind::EqualsEquals),
+        _ => None,
+    }
+}
+
+fn operator(mut char_iter: Chars) -> (usize, Option<TokenKind>) {
+    let first = char_iter.next();
+    let second = char_iter.next();
+
+    let first = match first {
+        None => return (0, None),
+        Some(c) => {
+            if !is_operator_token(c) { return (0, None); }
+            c
+        }
+    };
+
+    match second {
+        None => return (1, Some(parse_one_symbol_token(first))),
+        Some(second) => {
+            if is_operator_token(second) { return (2, parse_composite(first, second)); } 
+            else { return (1, Some(parse_one_symbol_token(first))); }
+        }
+    }
+}
+
+pub fn parse_ident(slice: &str) -> TokenKind {
+    match slice {
+        "func" => TokenKind::Func,
+        "start" => TokenKind::Start,
+        "end" => TokenKind::End,
+        "or" => TokenKind::Or,
+        "and" => TokenKind::And,
+        "xor" => TokenKind::Xor,
+        "if" => TokenKind::If,
+        "while" => TokenKind::While,
+        "do" => TokenKind::Do,
+        "then" => TokenKind::Then,
+        _ => TokenKind::Ident,
+    }
+}
+
+fn ident(char_iter: Chars) -> (usize, Option<TokenKind>) {
+    let mut buf = String::new();
+
+    for (idx, char) in char_iter.enumerate() {
+        if idx == 0 && !char.is_alphabetic() { return (0, None); }
+        else if !char.is_alphanumeric() { 
+            break;
+        }
+        buf.push(char);
+    }
+
+    (buf.len(), Some(parse_ident(&buf)))
+}
 
 impl Tokenizer {
     pub fn new(source_code: String) -> Self {
         Self {
             source_code,
-            current_loc: 0
+            current_loc: 0,
+            rules: vec![
+                TokenizerRule { name: "Whitespace", rule: Box::new(whitespace) },
+                TokenizerRule { name: "Operator",   rule: Box::new(operator) },
+                TokenizerRule { name: "Number",     rule: Box::new(number) },
+                TokenizerRule { name: "String",     rule: Box::new(string) },
+                TokenizerRule { name: "Identifier", rule: Box::new(ident) },
+            ],
         }
     }
 
-    pub fn next_token(&mut self) -> Result<Option<Token>, TokenizerError> {
+    pub fn next_token(&mut self) -> Option<Token> {
         let current_slice = &self.source_code[self.current_loc..];
-        let mut char_iterator = current_slice.chars().peekable();
-        let mut current_len = 0;
-        let mut in_string_context = false;
+        let char_iterator = current_slice.chars();
 
-        loop {
-            if let Some(c) = char_iterator.next() {
-                // parse strings
-                if in_string_context {
-                    // end string context and finalize string
-                    if c == '\"' {
-                        let string_slice = &self.source_code[self.current_loc..=self.current_loc+current_len];
-                        let string_token = Token::new(self.current_loc, TokenKind::String(string_slice.to_owned()));
-                        self.current_loc += current_len + 1;
-                        return Ok(Some(string_token));
-                    } else {
-                        current_len += 1;
-                        continue;
-                    }
+        for rule in self.rules.iter() {
+            let (len, kind) = (rule.rule)(char_iterator.clone());
+            
+            // println!("{:?} {:?}", len, kind);
+            // println!("{}", current_slice);
+
+            // whitespace
+            if len != 0 && kind.is_none() {
+                self.current_loc += len;
+                return self.next_token();
+            }
+
+            if len != 0 {
+                if let Some(kind) = kind {
+                    let token = Token::new(
+                        self.current_loc, 
+                        kind, 
+                        self.source_code[self.current_loc..self.current_loc+len].to_owned());                
+                    self.current_loc += len;
+                    return Some(token);
                 }
-
-                if c == '\"' && !in_string_context {
-                    in_string_context = true;
-                    current_len += 1;
-                    continue;
-                }
-
-                // skip whitespace
-                if Self::is_white_space(c) {
-                    self.current_loc += 1;
-                    continue;
-                }
-                
-                // one symbol tokens
-                if Self::is_special_token(c) {
-                    // check for composites like <=, >=, !=
-                    if Self::can_be_composite(c) {
-                        if let Some(next) = char_iterator.peek() {
-                            if let Some(token_kind) = Self::check_composite(c, *next) {
-                                let token = Token::new(self.current_loc, token_kind);
-                                self.current_loc += 2;
-                                return Ok(Some(token));
-                            }
-                        }
-                    }
-
-                    let kind = Self::parse_one_symbol_token(c);
-                    let token = Token::new(self.current_loc, kind);
-                    self.current_loc += 1;
-                    return Ok(Some(token));
-                } else {
-                    let finish_token = if let Some(next) = char_iterator.peek() {
-                        // look if the next token is whitespace or a special token
-                        Self::is_special_token(*next) || Self::is_white_space(*next)
-                    } else {
-                        // finish the token because end of input
-                        true
-                    };
-
-                    if finish_token {
-                        let current_slice = &self.source_code[self.current_loc..=self.current_loc+current_len];
-                        
-                        // check for number or string
-                        let result: Token = if Self::is_number(current_slice) {
-                            Token::new(self.current_loc, TokenKind::Number(current_slice.to_owned()))
-                        } else {
-                            // if not number and not string => check for reserved and if not reserved => ident
-                            Token::new(self.current_loc, Self::parse_ident(current_slice))
-                        };
-
-                        self.current_loc += current_len + 1;
-
-                        return Ok(Some(result));
-                    } else {
-                        // continue the search at the next symbol
-                        current_len += 1;
-                    }
-                }
-            } else {
-                // end of input
-                return Ok(None);
             }
         }
+        
+        None
     }
-
-    fn can_be_composite(c: char) -> bool {
-        c == '!' || c == '<' || c == '>' || c == '='
-    }
-
-    fn check_composite(first_char: char, second_char: char) -> Option<TokenKind> {
-        match (first_char, second_char) {
-            ('!', '=') => Some(TokenKind::NotEqual),
-            ('<', '=') => Some(TokenKind::LessOrEqual),
-            ('>', '=') => Some(TokenKind::GreaterOrEqual),
-            ('=', '=') => Some(TokenKind::EqualsEquals),
-            _ => None,
-        }
-    }
-
-    fn is_special_token(c: char) -> bool {
-        c == ',' || c == '+' || c == '-' || c == '*' || c == '=' || c == '[' || c == ']' || c == ';' || c == '<' || c == '>' || c == '|'
-    }
-
-    fn is_white_space(c: char) -> bool {
-        c == ' ' || c == '\t' || c == '\n'
-    }
-
-    fn is_number(token: &str) -> bool {
-        token.parse::<u32>().is_ok()
-    }
-
-    fn parse_one_symbol_token(c: char) -> TokenKind {
-        match c {
-            ',' => TokenKind::Comma,
-            ';' => TokenKind::Semicolon,
-            '+' => TokenKind::Plus,
-            '-' => TokenKind::Minus,
-            '*' => TokenKind::Times,
-            '=' => TokenKind::Equals,
-            '[' => TokenKind::OpeningBraket,
-            ']' => TokenKind::ClosingBraket,
-            '<' => TokenKind::LessThan,
-            '>' => TokenKind::GreaterThan,
-            '!' => TokenKind::Bang,
-            _ => unreachable!(),
-        }
-    }
-
-    pub fn parse_ident(slice: &str) -> TokenKind {
-        match slice {
-            "func" => TokenKind::Func,
-            "start" => TokenKind::Start,
-            "end" => TokenKind::End,
-            "or" => TokenKind::Or,
-            "and" => TokenKind::And,
-            "xor" => TokenKind::Xor,
-            "if" => TokenKind::If,
-            "while" => TokenKind::While,
-            "do" => TokenKind::Do,
-            "then" => TokenKind::Then,
-            _ => TokenKind::Ident(slice.to_owned()),
-        }
-    }
-
-}
-
-pub fn tokenize<'a>(source_code: &'a str) -> Result<Vec<Token>, TokenizerError> {
-    let mut tokenizer = Tokenizer::new(source_code.to_owned());
-    let mut tokens: Vec<Token> = Vec::new();
-    loop {
-        if let Some(token) = tokenizer.next_token()? {
-            tokens.push(token);
-        } else {
-            break;
-        }
-    }
-
-    return Ok(tokens);
 }
