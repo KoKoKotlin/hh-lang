@@ -31,3 +31,15 @@ pub enum Literal {
     False,
     Unit,
 }
+
+impl Literal {
+    pub fn is_truthy(&self) -> bool {
+        match self {
+            Literal::String(str) => !str.is_empty(),
+            Literal::Number(num) => *num != 0,
+            Literal::True => true,
+            Literal::False => false,
+            Literal::Unit => false,
+        }
+    }
+}

@@ -28,7 +28,7 @@ const MULITPLICATIVE_OPERATORS: [TokenKind; 1] = [
  * Program   => Block == Vec<Statment>
  * Block     => [ "let" IDENT "=" Literal {, IDENT "=" Literal } ";" ]
  *              [ "var" IDENT { "=" Literal } {, IDENT {"=" Literal}} ";" ]
- *              Statement
+ *              [ Statement ]
  * Statement => IDENT "=" Expr ";"
  *              "if" Expr "then" Block {"else" Block} "end"
  *              "while" Expr "then" Block "end"

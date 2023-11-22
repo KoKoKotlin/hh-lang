@@ -2,9 +2,12 @@ use std::{fs::File, io::Read};
 
 use parser::Parser;
 
+use crate::interpreter::interprete_ast;
+
 mod tokenizer;
 mod parser;
 mod ast;
+mod interpreter;
 
 const SOURCE_FILE_PATH: &'static str = "main.hh";
 
@@ -21,5 +24,7 @@ fn main() {
     let mut parser = Parser::new(&source_code);
     let ast_root = parser.parse();
 
-    println!("{:?}", ast_root)
+    if let Ok(ast_root) = ast_root {
+        println!("{:?}", interprete_ast(ast_root));
+    }
 }
