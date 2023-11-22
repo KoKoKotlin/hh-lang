@@ -11,6 +11,8 @@ pub enum Statement {
     Reassign(Token, Expr),
     ConstAssign(Vec<(Token, Literal)>),
     VarDecl(Vec<(Token, Option<Literal>)>),
+    If(Expr, Block, Option<Block>),
+    While(Expr, Block),
 }
 
 #[derive(Debug, Clone)]

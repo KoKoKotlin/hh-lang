@@ -30,6 +30,8 @@ const MULITPLICATIVE_OPERATORS: [TokenKind; 1] = [
  *              [ "var" IDENT { "=" Literal } {, IDENT {"=" Literal}} ";" ]
  *              Statement
  * Statement => IDENT "=" Expr ";"
+ *              "if" Expr "then" Block {"else" Block} "end"
+ *              "while" Expr "then" Block "end"
  * Expr      => {UN_OP} Term { ADD_OP term } ";"
  * Term      => Factor { MULT_OP Factor } ";"
  * Factor    => IDENT | NUMBER | "(" Expr ")"
@@ -62,19 +64,56 @@ impl Parser {
     fn block(&mut self) -> Result<Block, ()> {
         use TokenKind::*;
         let mut statements: Vec<Statement> = vec![];
-        let head = self.look_ahead.as_ref().ok_or(())?;
         
-        statements.push(match head.kind {
-            Let => self.let_binding()?,
-            Var => self.var_decl()?,
-            Ident => self.reassign()?,
-            _ => {
-                consume_error(Some(head), &[Let, Var, Ident]);
-                return Err(());
-            },
-        });
+        while let Some(head) = self.peek() {
+            statements.push(match head {
+                Let => self.let_binding()?,
+                Var => self.var_decl()?,
+                Ident => self.reassign()?,
+                If => self.fi()?,
+                While => self.elihw()?,
+                End | Else => { break; }
+                _ => {
+                    let head = self.get();
+                    consume_error(head.as_ref(), &[Let, Var, Ident, If, While]);
+                    return Err(());
+                },
+            });
+        }
 
         Ok(Block(statements))
+    }
+
+    fn fi(&mut self) -> Result<Statement, ()> {
+        use TokenKind::*;
+
+        self.consume(&[If]).ok_or(())?;
+        let condition = self.expr()?;
+        self.consume(&[Then]).ok_or(())?;
+        let if_block = self.block()?;
+        
+        let mut else_block = None;
+        if let Some(kind) = self.peek() {
+            if kind == Else {
+                self.consume(&[Else]).ok_or(())?;
+                else_block = Some(self.block()?);
+            }
+        }
+
+        self.consume(&[End]).ok_or(())?;
+        return Ok(Statement::If(condition, if_block, else_block));
+    }
+
+    fn elihw(&mut self) -> Result<Statement, ()> {
+        use TokenKind::*;
+
+        self.consume(&[While]).ok_or(())?;
+        let condition = self.expr()?;
+        self.consume(&[Do]).ok_or(())?;
+        let block = self.block()?;
+        self.consume(&[End]).ok_or(())?;
+        
+        return Ok(Statement::While(condition, block));
     }
 
     fn let_binding(&mut self) -> Result<Statement, ()> {
@@ -196,6 +235,10 @@ impl Parser {
             Some(Ident) => {
                 let ident = self.consume(&[Ident]).ok_or(())?;
                 return Ok(Expr::Ident(ident));
+            },
+            Some(True) | Some(False) => {
+                let bool = self.literal()?;
+                return Ok(Expr::Literal(bool));
             },
             _ => {
                 let next = self.get();
