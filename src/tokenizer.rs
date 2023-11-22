@@ -1,7 +1,7 @@
-use std::{fmt::Debug, str::Chars};
+use std::{fmt::{Debug, Display, write}, str::Chars};
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenKind {
     Ident,
     String,
@@ -12,9 +12,12 @@ pub enum TokenKind {
     Plus,
     Minus,
     Times,
+    Div,
     Semicolon,
     OpeningBraket,
     ClosingBraket,
+    OpeningParan,    
+    ClosingParan,
     Comma,
     LessThan,
     GreaterThan,
@@ -37,13 +40,61 @@ pub enum TokenKind {
     While,
     Do,
     Then,
+    True,
+    False,
+    Let,
+    Var,
+}
+
+impl Display for TokenKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use TokenKind::*;
+
+        write!(f, "{}", match *self {
+            Ident => "Ident",
+            Number => "Number",
+            String => "String",
+            Equals => "=",
+            Plus => "+",
+            Minus => "-",
+            Times => "*",
+            Div => "/",
+            Semicolon => ";",
+            OpeningBraket => "[",
+            ClosingBraket => "]",
+            OpeningParan => "(",
+            ClosingParan => ")",
+            Comma => ",",
+            LessThan => "<",
+            GreaterThan => ">",
+            Bang => "!",
+            LessOrEqual => "<=",
+            GreaterOrEqual => ">=",
+            NotEqual => "!=",
+            EqualsEquals => "==",
+            Func => "func",
+            Start => "start",
+            End => "end",
+            Or => "or",
+            And => "and",
+            Xor => "xor",
+            If => "if",
+            While => "while",
+            Do => "do",
+            Then => "then",
+            True => "true",
+            False => "false",
+            Let => "let",
+            Var => "var",
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct Token {
-    loc: usize,
-    kind: TokenKind,
-    symbols: String,
+    pub loc: usize,
+    pub kind: TokenKind,
+    pub symbols: String,
 }
 
 impl Token {
@@ -111,7 +162,9 @@ fn string(char_iter: Chars) -> (usize, Option<TokenKind>) {
 }
 
 fn is_operator_token(c: char) -> bool {
-    c == ',' || c == '+' || c == '-' || c == '*' || c == '=' || c == '[' || c == ']' || c == ';' || c == '<' || c == '>' || c == '!'
+    c == ',' || c == '+' || c == '-' || c == '*' || c == '/' || c == '=' 
+ || c == '[' || c == ']' || c == ';' || c == '<' || c == '>' || c == '!'
+ || c == '(' || c == ')'
 }
 
 fn parse_one_symbol_token(c: char) -> TokenKind {
@@ -121,9 +174,12 @@ fn parse_one_symbol_token(c: char) -> TokenKind {
         '+' => TokenKind::Plus,
         '-' => TokenKind::Minus,
         '*' => TokenKind::Times,
+        '/' => TokenKind::Div,
         '=' => TokenKind::Equals,
         '[' => TokenKind::OpeningBraket,
         ']' => TokenKind::ClosingBraket,
+        '(' => TokenKind::OpeningParan,
+        ')' => TokenKind::ClosingParan,
         '<' => TokenKind::LessThan,
         '>' => TokenKind::GreaterThan,
         '!' => TokenKind::Bang,
@@ -174,6 +230,10 @@ pub fn parse_ident(slice: &str) -> TokenKind {
         "while" => TokenKind::While,
         "do" => TokenKind::Do,
         "then" => TokenKind::Then,
+        "true" => TokenKind::True,
+        "false" => TokenKind::False,
+        "let" => TokenKind::Let,
+        "var" => TokenKind::Var,
         _ => TokenKind::Ident,
     }
 }

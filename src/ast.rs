@@ -1,67 +1,28 @@
 use crate::tokenizer::Token;
 
+#[derive(Debug, Clone)]
+pub struct Program(pub Vec<Block>);
 
-enum Expr {
-    Binary(Binary),
-    Unary(Unary),
+#[derive(Debug, Clone)]
+pub struct Block(pub Vec<Statement>);
+
+#[derive(Debug, Clone)]
+pub enum Statement {
+    Reassign(Token, Expr),
+    ConstAssign(Token, Literal),
+    VarDecl(Token, Option<Literal>),
+}
+
+#[derive(Debug, Clone)]
+pub enum Expr {
+    Binary(Box<Expr>, Token, Box<Expr>),
+    // Unary(Unary),
     Literal(Literal),
-}
-
-impl Expr {
-    pub fn evaluate(&self) -> Expr {
-        match self {
-            Expr::Binary(binary) => {
-                binary.evaluate()
-            },
-            Expr::Unary(unary) => {
-                unary.evaluate()
-            },
-            Expr::Literal(literal) => Expr::Literal(literal.clone()),
-        }
-    }
-}
-
-struct Binary {
-    left: Box<Expr>,
-    right: Box<Expr>,
-    operator: Token,
-}
-
-impl Binary {
-    pub fn evaluate(&self) -> Expr {
-        let left = self.left.evaluate();
-        let right = self.right.evaluate();
-        
-        match (left, right) {
-            (Expr::Literal(lit1), Expr::Literal(lit2)) => {
-                Expr::Literal(Literal::Unit)
-            },
-            _ => unreachable!(),
-        }
-    }
-}
-
-
-struct Unary {
-    operator: Token,
-    operand: Box<Expr>,
-}
-
-impl Unary {
-    pub fn evaluate(&self) -> Expr {
-        let operand = self.operand.evaluate();
-
-        match operand {
-            Expr::Literal(lit) => {
-                Expr::Literal(Literal::Unit)
-            },
-            _ => unreachable!(),
-        }
-    }
+    Ident(Token),
 }
 
 #[derive(Clone, Debug)]
-enum Literal {
+pub enum Literal {
     String(String),
     Number(u32),
     True,
