@@ -82,6 +82,15 @@ fn whitespace(char_iter: Chars) -> (usize, Option<TokenKind>) {
     (0, None)
 }
 
+fn comment(char_iter: Chars) -> (usize, Option<TokenKind>) {
+    for (idx, char) in char_iter.enumerate() {
+        if idx == 0 && char != '#' { break; }
+        else if idx != 0 && char == '\n' { return (idx, None) }; 
+    }
+
+    (0, None)
+}
+
 fn number(char_iter: Chars) -> (usize, Option<TokenKind>) {
     for (idx, char) in char_iter.enumerate() {
         if !char.is_numeric() {
@@ -190,6 +199,7 @@ impl Tokenizer {
             current_loc: 0,
             rules: vec![
                 TokenizerRule { name: "Whitespace", rule: Box::new(whitespace) },
+                TokenizerRule { name: "Comment",    rule: Box::new(comment) },
                 TokenizerRule { name: "Operator",   rule: Box::new(operator) },
                 TokenizerRule { name: "Number",     rule: Box::new(number) },
                 TokenizerRule { name: "String",     rule: Box::new(string) },
@@ -204,11 +214,8 @@ impl Tokenizer {
 
         for rule in self.rules.iter() {
             let (len, kind) = (rule.rule)(char_iterator.clone());
-            
-            // println!("{:?} {:?}", len, kind);
-            // println!("{}", current_slice);
 
-            // whitespace
+            // skip whitespace and comments
             if len != 0 && kind.is_none() {
                 self.current_loc += len;
                 return self.next_token();
