@@ -9,7 +9,7 @@ pub struct Block(pub Vec<Statement>);
 #[derive(Debug, Clone)]
 pub enum Statement {
     Reassign(Token, Expr),
-    ConstAssign(Token, Literal),
+    ConstAssign(Vec<(Token, Literal)>),
     VarDecl(Vec<(Token, Option<Literal>)>),
 }
 

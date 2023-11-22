@@ -26,8 +26,8 @@ const MULITPLICATIVE_OPERATORS: [TokenKind; 1] = [
 
 /** Current Grammar:
  * Program   => Block == Vec<Statment>
- * Block     => [ "let" IDENT "=" Literal ";" ]
- *              [ "var" IDENT { "=" Literal } {, IDENT {= Literal}} ";" ]
+ * Block     => [ "let" IDENT "=" Literal {, IDENT "=" Literal } ";" ]
+ *              [ "var" IDENT { "=" Literal } {, IDENT {"=" Literal}} ";" ]
  *              Statement
  * Statement => IDENT "=" Expr ";"
  * Expr      => {UN_OP} Term { ADD_OP term } ";"
@@ -80,13 +80,23 @@ impl Parser {
     fn let_binding(&mut self) -> Result<Statement, ()> {
         use TokenKind::*;
         
+        let mut let_bindings: Vec<(Token, Literal)> = vec![];
         self.consume(&[Let]).ok_or(())?;
-        let ident = self.consume(&[Ident]).ok_or(())?;
-        self.consume(&[Equals]).ok_or(())?;
-        let value = self.literal()?;
-        self.consume(&[Semicolon]).ok_or(())?; 
+        loop {
+            let ident = self.consume(&[Ident]).ok_or(())?;
+            self.consume(&[Equals]).ok_or(())?;
+            let value = self.literal()?;
+
+            let_bindings.push((ident, value));
+
+            match self.peek() {
+                Some(kind) if kind == Comma => self.consume(&[Comma]).ok_or(())?,
+                _ => break,
+            };
+        }
         
-        Ok(Statement::ConstAssign(ident, value))
+        self.consume(&[Semicolon]).ok_or(())?; 
+        Ok(Statement::ConstAssign(let_bindings))
     }
      
     fn var_decl(&mut self) -> Result<Statement, ()> {
