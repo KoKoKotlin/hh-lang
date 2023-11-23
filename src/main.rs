@@ -39,6 +39,6 @@ fn main() {
             }
             _ => println!("Err: {:?}", err),
         }
-        println!("Err: {:?}\nContext: {:?}", err, context);
+        println!("Context: {:?}", context);
     }
 }

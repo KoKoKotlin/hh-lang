@@ -24,16 +24,16 @@ const MULITPLICATIVE_OPERATORS: [TokenKind; 1] = [
     TokenKind::Times,
 ];
 
-const BUILT_INS: [TokenKind; 2] = [
+const BUILT_INS: [TokenKind; 3] = [
     TokenKind::Print,
     TokenKind::Println,
+    TokenKind::Dbg,
 ];
 
 /** Current Grammar:
  * Program     => BlockList == Vec<Statement>
  * Block       => [ "let" IDENT "=" Literal {, IDENT "=" Literal } ";" ] |
  *                [ "var" IDENT { "=" Literal } {, IDENT {"=" Literal}} ";" ] |
- *                [ "list" IDENT "[" Expr "]" { = "[" {Expr, } "]" } ";" ] |
  *                [ Statement ]
  * Statement   => IDENT "=" Expr ";" |
  *                IDENT "[" Expr "]" "=" Expr ";" |
@@ -45,13 +45,14 @@ const BUILT_INS: [TokenKind; 2] = [
  * Expr        => {UN_OP} Term { ADD_OP term } |
  *                FuncCall |
  *                BuiltInCall |
- *                "new" IDENT "(" { Expr, } ")"
+ *                "[" Expr "]" {"(" {Expr, } ")"}
+ *                "new" IDENT "(" { Expr, } ")" |
  * ExprList    => { Expr, }
  * FuncCall    => "call" IDENT {IDENT}
  * BuiltInCall => BuiltIn { Expr {, Expr} }
  * Term        => Factor { MULT_OP Factor }
  * Factor      => IDENT | IDENT "[" Expr "]" | NUMBER | STRING | "(" Expr ")"
- * Literal     => NUMBER | STRING | BOOL | RecordInstance
+ * Literal     => NUMBER | STRING | BOOL | RecordInstance | ListLiteral
  * BuiltIn     => "print" | "println"
  */
 
@@ -86,7 +87,6 @@ impl Parser {
             statements.push(match head {
                 Let => self.let_binding()?,
                 Var => self.var_decl()?,
-                List => self.list_decl()?,
                 Ident => self.reassign()?,
                 If => self.fi()?,
                 While => self.elihw()?,
@@ -249,31 +249,6 @@ impl Parser {
         return Ok(Statement::VarDecl(var_decls));
     }
 
-    fn list_decl(&mut self) -> Result<Statement, ()> {
-        use TokenKind::*;
-        
-        self.consume(&[List]).ok_or(())?;
-        let ident = self.consume(&[Ident]).ok_or(())?;
-        self.consume(&[OpeningBracket]).ok_or(())?;
-        let expr = self.expr()?;
-        self.consume(&[ClosingBracket]).ok_or(())?;
-
-        let mut exprs = vec![];
-        match self.peek() {
-            Some(Equals) => {
-                self.consume(&[Equals]).ok_or(())?;
-                self.consume(&[OpeningBracket]).ok_or(())?;
-                exprs = self.expr_list(Some(Comma), ClosingBracket)?;
-                self.consume(&[ClosingBracket]).ok_or(())?;
-            },
-            _ => {},
-        }
-
-        self.consume(&[Semicolon]).ok_or(())?;
-
-        return Ok(Statement::ListDecl(ident, expr, exprs));
-    }
-
     fn reassign(&mut self) -> Result<Statement, ()> {
         use TokenKind::*;
         let ident = self.consume(&[Ident]).ok_or(())?;
@@ -311,6 +286,7 @@ impl Parser {
         match self.peek() {
             Some(Call) => return self.call(),
             Some(New) => return self.new_record(),
+            Some(OpeningBracket) => return self.list(),
             Some(kind) if BUILT_INS.contains(&kind) => return self.built_in(),
             _ => {
                 let left = self.term()?;
@@ -327,6 +303,25 @@ impl Parser {
                 }
             }
         }
+    }
+
+    fn list(&mut self) -> Result<Expr, ()> {
+        use TokenKind::*;
+        let start_token = self.consume(&[OpeningBracket]).ok_or(())?;
+        let capacity_expr = self.expr()?;
+        self.consume(&[ClosingBracket]).ok_or(())?;
+
+        
+        let init_exprs = if let Some(OpeningParan) = self.peek() {
+            self.consume(&[OpeningParan]).ok_or(())?;
+            let exprs = self.expr_list(Some(Comma), ClosingParan)?;
+            self.consume(&[ClosingParan]).ok_or(())?;
+            exprs
+        } else {
+            vec![]
+        };
+
+        Ok(Expr::ListInstantiation(start_token, Box::new(capacity_expr), init_exprs))
     }
 
     fn term(&mut self) -> Result<Expr, ()> {

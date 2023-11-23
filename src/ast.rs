@@ -14,7 +14,6 @@ pub enum Statement {
     ListReassign(Token, Expr, Expr),
     ConstAssign(Vec<(Token, Literal)>),
     VarDecl(Vec<(Token, Option<Literal>)>),
-    ListDecl(Token, Expr, Vec<Expr>),
     If(Expr, Block, Option<Block>),
     While(Expr, Block),
     FuncDecl(Token, Vec<Token>, Block),
@@ -31,6 +30,7 @@ pub enum Expr {
     IdentIndexed(Token, Box<Expr>),
     FuncCall(Token, Vec<Expr>),
     BuiltInCall(Token, Vec<Expr>),
+    ListInstantiation(Token, Box<Expr>, Vec<Expr>),
     RecordInstantiation(Token, Vec<Expr>),
 }
 
@@ -38,9 +38,9 @@ pub enum Expr {
 pub enum Literal {
     String(String),
     Number(i64),
-    List(Vec<Box<Literal>>),
     True,
     False,
+    List(Vec<Literal>),
     RecordInstance(Token, Vec<Literal>),
     Unit,
 }
@@ -71,6 +71,15 @@ impl Literal {
             Literal::True => "true".to_string(),
             Literal::False => "false".to_string(),
             Literal::Unit => "()".to_string(),
+            Literal::List(values) => {
+                let mut buf = String::new();
+                buf.push_str("[ ");
+                for lit in values {
+                    buf.push_str(&format!("{} ", lit));
+                }
+                buf.push_str("]");
+                buf
+            }
             Literal::RecordInstance(record_name, field_values) => {
                 let mut buf = String::new();
                 buf.push_str(&record_name.symbols);

@@ -202,7 +202,7 @@ impl InterpreterContext {
                         return Err(InterpreterError::IndexOutOfBounds(tok.clone()));
                     }
 
-                    return Ok(*values[idx as usize].clone());
+                    return Ok(values[idx as usize].clone());
                 },
             }
         } else {
@@ -236,7 +236,7 @@ impl InterpreterContext {
                             return Err(InterpreterError::IndexOutOfBounds(tok.clone()));
                         }
 
-                        values[idx as usize] = Box::new(result);
+                        values[idx as usize] = result;
                         return Ok(());
                     },
                 }
@@ -262,6 +262,7 @@ impl InterpreterContext {
             Expr::IdentIndexed(tok, idx_expr) => self.index_var(tok, idx_expr),
             Expr::BuiltInCall(tok, args) => exec_built_in(self, tok, args),
             Expr::FuncCall(func_name, args_exprs) => exec_func_call(self, func_name, args_exprs),
+            Expr::ListInstantiation(tok, capacity, init_exprs) => exec_list_instantiation(self, tok, capacity, init_exprs),
             Expr::RecordInstantiation(record_name, field_exprs) => exec_record_instantiation(self, record_name, field_exprs),
         }
     }
@@ -398,8 +399,8 @@ fn exec_var_decl(context: &mut InterpreterContext, decls: &Vec<(Token, Option<Li
     Ok(())
 }
 
-fn exec_list_decl(context: &mut InterpreterContext, tok: &Token, expr: &Expr, init_val: &Vec<Expr>) -> InterpreterResult {
-    let capacity = match context.eval(expr)? {
+fn exec_list_instantiation(context: &mut InterpreterContext, tok: &Token, capacity_expr: &Expr, init_exprs: &Vec<Expr>) -> Result<Literal, InterpreterError> {
+    let capacity = match context.eval(capacity_expr)? {
         Literal::String(_) => return Err(InterpreterError::TypeError(tok.clone(), "String cannot be used as a list".to_string())),
         Literal::Number(num) => {
             if num < 0 {
@@ -416,21 +417,18 @@ fn exec_list_decl(context: &mut InterpreterContext, tok: &Token, expr: &Expr, in
     };
 
     let mut value = Vec::with_capacity(capacity);
-    if capacity < init_val.len() {
+    if capacity < init_exprs.len() {
         return Err(InterpreterError::IndexOutOfBounds(tok.clone()));
     }
 
-    for val in init_val {
-        let lit = context.eval(val)?;
-        value.push(Box::new(lit));
-    }
+    let init_lits: Result<Vec<Literal>, InterpreterError> = init_exprs.iter().map(|expr| context.eval(expr)).collect();
+    let init_lits = init_lits?;
 
-    for _ in 0..(capacity - init_val.len()) {
-        value.push(Box::new(Literal::Number(0)));
+    for _ in 0..(capacity - init_lits.len()) {
+        value.push(Literal::Number(0));
     }
     
-    context.create_var(tok, Some(Literal::List(value)));
-    Ok(())
+    Ok(Literal::List(value))
 }
 
 fn exec_if(context: &mut InterpreterContext, cond: &Expr, if_block: &Block, else_block: Option<&Block>) -> InterpreterResult {
@@ -473,6 +471,13 @@ fn exec_built_in(context: &mut InterpreterContext, tok: &Token, args: &Vec<Expr>
             }
             println!();
         },
+        Dbg => {
+            for arg in args {
+                let arg = context.eval(arg)?;
+                print!("{:?}", arg);
+            }
+            println!();
+        }
         _ => unimplemented!("BuiltIn {:?} not implemented yet", tok.kind),
     }
 
@@ -509,7 +514,6 @@ fn exec_block(context: &mut InterpreterContext, block: &Block) -> InterpreterRes
             Statement::ListReassign(tok, idx_expr, val_expr) => exec_list_reassign(context, tok, idx_expr, val_expr)?,
             Statement::ConstAssign(assigns) => exec_const_assign(context, assigns)?,
             Statement::VarDecl(decls) => exec_var_decl(context, decls)?,
-            Statement::ListDecl(tok, expr, init_val) => exec_list_decl(context, tok, expr, init_val)?,
             Statement::If(cond, if_block, else_block) => exec_if(context, cond, if_block, else_block.as_ref())?,
             Statement::While(cond, block) => exec_while(context, cond, block)?,
             Statement::FuncDecl(func_name, args, code) => exec_func_decl(context, func_name, args, code)?,

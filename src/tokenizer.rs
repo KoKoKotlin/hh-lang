@@ -45,10 +45,10 @@ pub enum TokenKind {
     False,
     Let,
     Var,
-    List,
     Call,
     Record,
     New,
+    Dbg,
 
     // built-in functions
     Print,
@@ -98,10 +98,10 @@ impl Display for TokenKind {
             Var => "var",
             Print => "Built-In Print",
             Println => "Built-In Pritnln",
-            List => "list",
             Call => "call",
             Record => "record",
             New => "new",
+            Dbg => "Built-In Dbg",
         })
     }
 }
@@ -282,11 +282,11 @@ pub fn parse_ident(slice: &str) -> TokenKind {
         "let" => TokenKind::Let,
         "var" => TokenKind::Var,
         "print" => TokenKind::Print,
-        "list" => TokenKind::List,
         "println" => TokenKind::Println,
         "call" => TokenKind::Call,
         "record" => TokenKind::Record,
         "new" => TokenKind::New,
+        "dbg" => TokenKind::Dbg,
         _ => TokenKind::Ident,
     }
 }
