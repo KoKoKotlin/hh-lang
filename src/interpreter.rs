@@ -89,8 +89,21 @@ impl Func {
     }
 }
 
+#[derive(Debug, Clone)]
+struct Record {
+    pub name: String,
+    pub fields: Vec<Token>,
+}
+
+impl Record {
+    pub fn new(name: &str, fields: &Vec<Token>) -> Self {
+        Self { name: name.to_owned(), fields: fields.clone() }
+    }
+}
+
 #[derive(Debug)]
 pub struct InterpreterContext {
+    record_decls: Vec<Record>,
     func_decls: Vec<Func>,
     global_scope: Scope,
     scope_stack: Vec<Scope>,
@@ -108,13 +121,15 @@ pub enum InterpreterError {
     IndexOutOfBounds(Token),
     FunctionNotDeclared(Token),
     CallArgumentCount(Token),
+    RecordNotDeclared(Token),
+    RecordFieldCount(Token),
 }
 
 pub type InterpreterResult = Result<(), InterpreterError>;
 
 impl InterpreterContext {
     pub fn new() -> Self {
-        Self { global_scope: Scope::new(None), func_decls: vec![], scope_stack: vec![] }
+        Self { global_scope: Scope::new(None), record_decls: vec![], func_decls: vec![], scope_stack: vec![] }
     }
 
     fn create_var(&mut self, tok: &Token, lit: Option<Literal>) {
@@ -176,11 +191,12 @@ impl InterpreterContext {
             }
 
             match lit {
-                Literal::String(str) => return Err(InterpreterError::TypeError(tok.clone(), "String cannot be indexed".to_string())),
+                Literal::String(_) => return Err(InterpreterError::TypeError(tok.clone(), "String cannot be indexed".to_string())),
                 Literal::Number(_) => return Err(InterpreterError::TypeError(tok.clone(), "Number cannot be indexed".to_string())),
                 Literal::True => return Err(InterpreterError::TypeError(tok.clone(), "Bool cannot be indexed".to_string())),
                 Literal::False => return Err(InterpreterError::TypeError(tok.clone(), "Bool cannot be indexed".to_string())),
                 Literal::Unit => return Err(InterpreterError::TypeError(tok.clone(), "Unit cannot be indexed".to_string())),
+                Literal::RecordInstance(_, _) => return Err(InterpreterError::TypeError(tok.clone(), "Record instance cannot be indexed".to_string())),
                 Literal::List(values) => {
                     if idx as usize >= values.len() {
                         return Err(InterpreterError::IndexOutOfBounds(tok.clone()));
@@ -214,6 +230,7 @@ impl InterpreterContext {
                     Literal::True => return Err(InterpreterError::TypeError(tok.clone(), "Bool cannot be indexed".to_string())),
                     Literal::False => return Err(InterpreterError::TypeError(tok.clone(), "Bool cannot be indexed".to_string())),
                     Literal::Unit => return Err(InterpreterError::TypeError(tok.clone(), "Unit cannot be indexed".to_string())),
+                    Literal::RecordInstance(_, _) => return Err(InterpreterError::TypeError(tok.clone(), "Record instance cannot be indexed".to_string())),
                     Literal::List(ref mut values) => {
                         if idx as usize >= values.len() {
                             return Err(InterpreterError::IndexOutOfBounds(tok.clone()));
@@ -244,7 +261,8 @@ impl InterpreterContext {
             },
             Expr::IdentIndexed(tok, idx_expr) => self.index_var(tok, idx_expr),
             Expr::BuiltInCall(tok, args) => exec_built_in(self, tok, args),
-            Expr::FuncCall(func_name, args_exprs) => exec_func_call(self, func_name, args_exprs), 
+            Expr::FuncCall(func_name, args_exprs) => exec_func_call(self, func_name, args_exprs),
+            Expr::RecordInstantiation(record_name, field_exprs) => exec_record_instantiation(self, record_name, field_exprs),
         }
     }
 
@@ -275,6 +293,28 @@ impl InterpreterContext {
         }
 
         Ok(Literal::Unit)
+    }
+
+    fn get_record(&self, record_name: &Token) -> Option<Record> {
+        for record in self.record_decls.iter() {
+            if record.name == record_name.symbols { return Some(record.clone()); }
+        }
+        None
+    }
+
+    fn instance_record(&mut self, record_name: &Token, field_exprs: &Vec<Expr>) -> Result<Literal, InterpreterError> {
+        let record = self.get_record(record_name);
+
+        if let Some(record) = record {
+            if field_exprs.len() != record.fields.len() {
+                return Err(InterpreterError::RecordFieldCount(record_name.clone()));
+            }
+
+            let field_lits: Result<Vec<Literal>, InterpreterError> = field_exprs.iter().map(|expr| self.eval(expr)).collect();
+            return Ok(Literal::RecordInstance(record_name.clone(), field_lits?));
+        } else {
+            return Err(InterpreterError::RecordNotDeclared(record_name.clone()));
+        }
     }
 }
 
@@ -372,6 +412,7 @@ fn exec_list_decl(context: &mut InterpreterContext, tok: &Token, expr: &Expr, in
         Literal::False => return Err(InterpreterError::TypeError(tok.clone(), "Bool cannot be used as a list".to_string())),
         Literal::Unit => return Err(InterpreterError::TypeError(tok.clone(), "Unit cannot be used as a list".to_string())),
         Literal::List(_) => return Err(InterpreterError::TypeError(tok.clone(), "List cannot be used as a list".to_string())),
+        Literal::RecordInstance(_, _) => return Err(InterpreterError::TypeError(tok.clone(), "Record instance cannot be used as a list".to_string())),
     };
 
     let mut value = Vec::with_capacity(capacity);
@@ -443,6 +484,11 @@ fn exec_func_decl(context: &mut InterpreterContext, func_name: &Token, args: &Ve
     Ok(())
 }
 
+fn exec_record_decl(context: &mut InterpreterContext, record_name: &Token, fields: &Vec<Token>) -> InterpreterResult {
+    context.record_decls.push(Record::new(&record_name.symbols, fields));
+    Ok(())
+}
+
 fn exec_func_call(context: &mut InterpreterContext, func_name: &Token, args_exprs: &Vec<Expr>) -> Result<Literal, InterpreterError> {
     context.exec_func(func_name, args_exprs)
 }
@@ -450,6 +496,10 @@ fn exec_func_call(context: &mut InterpreterContext, func_name: &Token, args_expr
 fn exec_expr(context: &mut InterpreterContext, expr: &Expr) -> InterpreterResult {
     let _ = context.eval(expr)?;
     Ok(())
+}
+
+fn exec_record_instantiation(context: &mut InterpreterContext, record_name: &Token, field_values: &Vec<Expr>) -> Result<Literal, InterpreterError> {
+    context.instance_record(record_name, field_values)
 }
 
 fn exec_block(context: &mut InterpreterContext, block: &Block) -> InterpreterResult {
@@ -463,6 +513,7 @@ fn exec_block(context: &mut InterpreterContext, block: &Block) -> InterpreterRes
             Statement::If(cond, if_block, else_block) => exec_if(context, cond, if_block, else_block.as_ref())?,
             Statement::While(cond, block) => exec_while(context, cond, block)?,
             Statement::FuncDecl(func_name, args, code) => exec_func_decl(context, func_name, args, code)?,
+            Statement::RecordDecl(record_name, fields) => exec_record_decl(context, record_name, fields)?,
             Statement::Expr(expr) => exec_expr(context, expr)?,
         }
     }

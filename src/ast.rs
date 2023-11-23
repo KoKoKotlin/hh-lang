@@ -18,6 +18,7 @@ pub enum Statement {
     If(Expr, Block, Option<Block>),
     While(Expr, Block),
     FuncDecl(Token, Vec<Token>, Block),
+    RecordDecl(Token, Vec<Token>),
     Expr(Expr),
 }
 
@@ -30,6 +31,7 @@ pub enum Expr {
     IdentIndexed(Token, Box<Expr>),
     FuncCall(Token, Vec<Expr>),
     BuiltInCall(Token, Vec<Expr>),
+    RecordInstantiation(Token, Vec<Expr>),
 }
 
 #[derive(Clone, Debug)]
@@ -39,6 +41,7 @@ pub enum Literal {
     List(Vec<Box<Literal>>),
     True,
     False,
+    RecordInstance(Token, Vec<Literal>),
     Unit,
 }
 
@@ -56,6 +59,7 @@ impl Literal {
             Literal::List(values) => values.len() != 0, 
             Literal::True => true,
             Literal::False => false,
+            Literal::RecordInstance(_, _) => true,
             Literal::Unit => false,
         }
     }
@@ -67,6 +71,16 @@ impl Literal {
             Literal::True => "true".to_string(),
             Literal::False => "false".to_string(),
             Literal::Unit => "()".to_string(),
+            Literal::RecordInstance(record_name, field_values) => {
+                let mut buf = String::new();
+                buf.push_str(&record_name.symbols);
+                buf.push_str("{ ");
+                for lit in field_values {
+                    buf.push_str(&format!("{} ", lit));
+                }
+                buf.push_str("}");
+                buf
+            },
             _ => format!("{:?}", self),
         }
     }

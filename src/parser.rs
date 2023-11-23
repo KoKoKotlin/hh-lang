@@ -31,25 +31,27 @@ const BUILT_INS: [TokenKind; 2] = [
 
 /** Current Grammar:
  * Program     => BlockList == Vec<Statement>
- * Block       => [ "let" IDENT "=" Literal {, IDENT "=" Literal } ";" ]
- *                [ "var" IDENT { "=" Literal } {, IDENT {"=" Literal}} ";" ]
- *                [ "list" IDENT "[" Expr "]" { = "[" {Expr, } "]" } ";" ]
+ * Block       => [ "let" IDENT "=" Literal {, IDENT "=" Literal } ";" ] |
+ *                [ "var" IDENT { "=" Literal } {, IDENT {"=" Literal}} ";" ] |
+ *                [ "list" IDENT "[" Expr "]" { = "[" {Expr, } "]" } ";" ] |
  *                [ Statement ]
- * Statement   => IDENT "=" Expr ";"
- *                IDENT "[" Expr "]" "=" Expr ";"
- *                "if" Expr "then" Block {"else" Block} "end"
- *                "while" Expr "do" Block "end"
- *                "func" IDENT {IDENT} "start" Block "end"
+ * Statement   => IDENT "=" Expr ";" |
+ *                IDENT "[" Expr "]" "=" Expr ";" |
+ *                "if" Expr "then" Block {"else" Block} "end" |
+ *                "while" Expr "do" Block "end" |
+ *                "func" IDENT {IDENT} "start" Block "end" |
+ *                "record" "start" IDENT "end" |
  *                Expr ";"
  * Expr        => {UN_OP} Term { ADD_OP term } |
  *                FuncCall |
- *                BuiltInCall
+ *                BuiltInCall |
+ *                "new" IDENT "(" { Expr, } ")"
  * ExprList    => { Expr, }
  * FuncCall    => "call" IDENT {IDENT}
  * BuiltInCall => BuiltIn { Expr {, Expr} }
  * Term        => Factor { MULT_OP Factor }
  * Factor      => IDENT | IDENT "[" Expr "]" | NUMBER | STRING | "(" Expr ")"
- * Literal     => NUMBER | STRING | BOOL
+ * Literal     => NUMBER | STRING | BOOL | RecordInstance
  * BuiltIn     => "print" | "println"
  */
 
@@ -89,6 +91,7 @@ impl Parser {
                 If => self.fi()?,
                 While => self.elihw()?,
                 Func => self.func()?,
+                Record => self.record()?,
                 End | Else => { break; }
                 // if all else fails try to parse the next statement as a standalone expression
                 _ => {
@@ -166,6 +169,18 @@ impl Parser {
         self.consume(&[End]).ok_or(())?;
         
         Ok(Statement::FuncDecl(func_name, args_list, code))
+    }
+
+    fn record(&mut self) -> Result<Statement, ()> {
+        use TokenKind::*;
+
+        self.consume(&[Record]).ok_or(())?;
+        let record_name = self.consume(&[Ident]).ok_or(())?;
+        self.consume(&[Start]).ok_or(())?;
+        let fields = self.consume_list(Ident, None, End).ok_or(())?;
+        self.consume(&[End]).ok_or(())?;
+        
+        return Ok(Statement::RecordDecl(record_name, fields));
     }
 
     fn call(&mut self) -> Result<Expr, ()> {
@@ -295,6 +310,7 @@ impl Parser {
         
         match self.peek() {
             Some(Call) => return self.call(),
+            Some(New) => return self.new_record(),
             Some(kind) if BUILT_INS.contains(&kind) => return self.built_in(),
             _ => {
                 let left = self.term()?;
@@ -373,7 +389,6 @@ impl Parser {
         use TokenKind::*;
 
         let token = self.consume(&[Number, String, True, False]).ok_or(())?;
-        
         Ok(match token.kind {
             Number => Literal::Number(token.symbols.parse::<i64>().unwrap()),
             String => Literal::String(token.symbols),
@@ -381,6 +396,18 @@ impl Parser {
             False  => Literal::False,
             _ => unreachable!(),
         })
+    }
+
+    fn new_record(&mut self) -> Result<Expr, ()> {
+        use TokenKind::*;
+
+        self.consume(&[New]).ok_or(())?;
+        let record_name = self.consume(&[Ident]).ok_or(())?;        
+        self.consume(&[OpeningParan]).ok_or(())?;
+        let exprs = self.expr_list(Some(Comma), ClosingParan)?;
+        self.consume(&[ClosingParan]).ok_or(())?;
+
+        Ok(Expr::RecordInstantiation(record_name, exprs))        
     }
 
     // fn unary(&mut self) -> Result<Expr, ()> {
