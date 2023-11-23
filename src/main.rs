@@ -2,7 +2,7 @@ use std::{fs::File, io::Read};
 
 use parser::Parser;
 
-use crate::interpreter::interprete_ast;
+use crate::interpreter::{interprete_ast, InterpreterError};
 
 mod tokenizer;
 mod parser;
@@ -33,6 +33,12 @@ fn main() {
 
     if let Ok(ast_root) = ast_root {
         let (err, context) = interprete_ast(ast_root);
+        match &err {
+            Err(InterpreterError::VariableDoesNotExists(tok)) => {
+                println!("Err: {:?}\nContext:\n{}", err, parser.get_context(tok));
+            }
+            _ => println!("Err: {:?}", err),
+        }
         println!("Err: {:?}\nContext: {:?}", err, context);
     }
 }

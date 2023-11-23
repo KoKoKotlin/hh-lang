@@ -438,6 +438,10 @@ impl Parser {
     fn get(&mut self) -> Option<Token> {
         self.tokenizer.next_token()
     }
+
+    pub fn get_context(&self, tok: &Token) -> String {
+        self.tokenizer.get_context(tok.index)
+    }
 }
 
 fn consume_error(parser: &Parser, token: Option<&Token>, token_kinds: &[TokenKind]) {
@@ -457,7 +461,7 @@ fn consume_error(parser: &Parser, token: Option<&Token>, token_kinds: &[TokenKin
     };
 
     match token {
-        Some(t) => eprintln!("Expected {} but got {} at {}.\nContext:\n{}", token_desc, t, t.loc, parser.tokenizer.get_context(t.loc)),
+        Some(t) => eprintln!("Expected {} but got {} at {}.\nContext:\n{}", token_desc, t, t.loc, parser.tokenizer.get_context(t.index)),
         None => eprintln!("Expected {} but no tokens are left!", token_desc),
     }
 }
