@@ -291,10 +291,16 @@ impl Tokenizer {
 
             if len != 0 {
                 if let Some(kind) = kind {
+                    let (start, end) = if kind == TokenKind::String {
+                        (self.current_loc+1, self.current_loc+len-1) 
+                    } else {
+                        (self.current_loc, self.current_loc+len)
+                    };
+
                     let token = Token::new(
                         self.current_loc, 
                         kind, 
-                        self.source_code[self.current_loc..self.current_loc+len].to_owned());                
+                        self.source_code[start..end].to_owned());                
                     self.current_loc += len;
                     return Some(token);
                 }
