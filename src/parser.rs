@@ -77,7 +77,7 @@ impl Parser {
                 Ident => self.reassign()?,
                 If => self.fi()?,
                 While => self.elihw()?,
-                Print => self.built_in()?,
+                Print | Println => self.built_in()?,
                 End | Else => { break; }
                 _ => {
                     let head = self.get();
@@ -224,7 +224,6 @@ impl Parser {
     fn reassign(&mut self) -> Result<Statement, ()> {
         use TokenKind::*;
         let ident = self.consume(&[Ident]).ok_or(())?;
-        println!("{:?}", ident);
 
         match self.peek() {
             Some(OpeningBracket) => {
