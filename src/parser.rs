@@ -121,6 +121,12 @@ impl Parser {
 
                 return Ok(Expr::BuiltInCall(print_tok, args));
             },
+            Some(Dbg) => {
+                let dbg = self.consume(&[Dbg]).ok_or(())?;
+                let args = self.expr_list(Some(Comma), Semicolon)?;
+
+                return Ok(Expr::BuiltInCall(dbg, args));
+            }
             _ => unreachable!(),
         }
     }

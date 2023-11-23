@@ -420,11 +420,12 @@ fn exec_list_instantiation(context: &mut InterpreterContext, tok: &Token, capaci
     if capacity < init_exprs.len() {
         return Err(InterpreterError::IndexOutOfBounds(tok.clone()));
     }
-
+    
     let init_lits: Result<Vec<Literal>, InterpreterError> = init_exprs.iter().map(|expr| context.eval(expr)).collect();
     let init_lits = init_lits?;
 
-    for _ in 0..(capacity - init_lits.len()) {
+    value.extend(init_lits);
+    for _ in 0..(capacity - init_exprs.len()) {
         value.push(Literal::Number(0));
     }
     
