@@ -261,21 +261,17 @@ impl Parser {
                 
                 return Ok(expr);
             },
-            Some(Number) => {
-                let number = self.literal()?;
-                return Ok(Expr::Literal(number));
+            Some(Number) | Some(True) | Some(False) | Some(String) => {
+                let lit = self.literal()?;
+                return Ok(Expr::Literal(lit));
             },
             Some(Ident) => {
                 let ident = self.consume(&[Ident]).ok_or(())?;
                 return Ok(Expr::Ident(ident));
             },
-            Some(True) | Some(False) => {
-                let bool = self.literal()?;
-                return Ok(Expr::Literal(bool));
-            },
             _ => {
                 let next = self.get();
-                consume_error(next.as_ref(), &[Number, Ident, OpeningParan]);
+                consume_error(next.as_ref(), &[Number, String, Ident, OpeningParan]);
                 return Err(());
             },
         }
