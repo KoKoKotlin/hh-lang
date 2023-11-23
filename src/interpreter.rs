@@ -117,6 +117,26 @@ impl InterpreterContext {
         Self { global_scope: Scope::new(None), func_decls: vec![], scope_stack: vec![] }
     }
 
+    fn create_var(&mut self, tok: &Token, lit: Option<Literal>) {
+        let scope = if let Some(local_scope) = self.scope_stack.last_mut() {
+            local_scope
+        } else {
+            &mut self.global_scope
+        };
+
+        scope.push(Name::make_var(&tok.symbols, lit));
+    }
+
+    fn create_const(&mut self, tok: &Token, lit: Literal) {
+        let scope = if let Some(local_scope) = self.scope_stack.last_mut() {
+            local_scope
+        } else {
+            &mut self.global_scope
+        };
+
+        scope.push(Name::make_const(&tok.symbols, lit));
+    }
+
     fn get_name(&mut self, tok: &Token) -> Option<&mut Name> {
         if let Some(scope) = self.scope_stack.last_mut() {
             if let Some(name) = scope.get_name(tok) {
@@ -318,8 +338,7 @@ fn exec_list_reassign(context: &mut InterpreterContext, tok: &Token, idx_expr: &
 
 fn exec_const_assign(context: &mut InterpreterContext, assigns: &Vec<(Token, Literal)>) -> InterpreterResult {
     for (tok, lit) in assigns {
-        let var = Name::make_const(&tok.symbols, lit.clone());
-        context.global_scope.push(var);
+        context.create_const(tok, lit.clone());
     }
 
     Ok(())
@@ -327,8 +346,7 @@ fn exec_const_assign(context: &mut InterpreterContext, assigns: &Vec<(Token, Lit
 
 fn exec_var_decl(context: &mut InterpreterContext, decls: &Vec<(Token, Option<Literal>)>) -> InterpreterResult {
     for (tok, lit) in decls {
-        let var = Name::make_var(&tok.symbols, lit.clone());
-        context.global_scope.push(var);
+        context.create_var(tok, lit.clone());
     }
 
     Ok(())
@@ -364,8 +382,7 @@ fn exec_list_decl(context: &mut InterpreterContext, tok: &Token, expr: &Expr, in
         value.push(Box::new(Literal::Number(0)));
     }
     
-    let list = Name::make_var(&tok.symbols, Some(Literal::List(value)));
-    context.global_scope.push(list);
+    context.create_var(tok, Some(Literal::List(value)));
     Ok(())
 }
 

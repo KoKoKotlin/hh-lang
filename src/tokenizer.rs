@@ -326,7 +326,6 @@ impl Tokenizer {
             // skip whitespace and comments
             if len != 0 && kind.is_none() {
                 let mut whitespace_slice = &current_slice[0..len];
-                dbg!(whitespace_slice);
 
                 let mut reset_col = false;
                 while let Some(idx) = whitespace_slice.find("\n") {
