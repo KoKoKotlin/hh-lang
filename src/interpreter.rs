@@ -177,7 +177,10 @@ fn apply_op(left: &Literal, op: &Token, right: &Literal) -> Result<Literal, Inte
         Plus => {
             match (left, right) {
                 (Literal::Number(left), Literal::Number(right)) => Ok(Literal::Number(left + right)),
+                
                 (Literal::String(left), Literal::String(right)) => Ok(Literal::String(format!("{}{}", left, right))),
+                (Literal::String(left), _) => Ok(Literal::String(format!("{}{}", left, right))),
+                (_, Literal::String(right)) => Ok(Literal::String(format!("{}{}", left, right))),
                 _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
             }
         },
@@ -303,11 +306,15 @@ fn exec_built_in(context: &mut InterpreterContext, tok: &Token, args: &Vec<Expr>
     match tok.kind {
         Print => {
             for arg in args {
-                println!("{:?}", arg);
                 let arg = context.eval(arg)?;
-                print!("{} ", arg);
+                print!("{}", arg);
             }
-            println!();
+        },
+        Println => {
+            for arg in args {
+                let arg = context.eval(arg)?;
+                println!("{}", arg);
+            }
         },
         _ => unimplemented!("BuiltIn {:?} not implemented yet", tok.kind),
     }
