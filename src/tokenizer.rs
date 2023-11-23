@@ -103,16 +103,31 @@ impl Display for TokenKind {
 }
 
 #[derive(Debug, Clone)]
+pub struct Location {
+    row: usize,
+    col: usize,
+    // TODO: filename
+}
+
+impl Display for Location {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}", self.row, self.col)
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Token {
-    pub loc: usize,
+    pub loc: Location,
+    pub index: usize,
     pub kind: TokenKind,
     pub symbols: String,
 }
 
 impl Token {
-    pub fn new(loc: usize, kind: TokenKind, symbols: String) -> Self {
+    pub fn new(loc: Location, index: usize, kind: TokenKind, symbols: String) -> Self {
         Self {
             loc,
+            index,
             kind,
             symbols
         }
@@ -143,7 +158,8 @@ impl Debug for TokenizerRule {
 #[derive(Debug)]
 pub struct Tokenizer {
     source_code: String,
-    current_loc: usize,
+    current_pointer: usize,
+    current_loc: Location,
     rules: Vec<TokenizerRule>,
 }
 
@@ -287,7 +303,8 @@ impl Tokenizer {
     pub fn new(source_code: String) -> Self {
         Self {
             source_code,
-            current_loc: 0,
+            current_pointer: 0,
+            current_loc: Location { row: 1, col: 1 },
             rules: vec![
                 TokenizerRule { name: "Whitespace", rule: Box::new(whitespace) },
                 TokenizerRule { name: "Comment",    rule: Box::new(comment) },
@@ -300,7 +317,7 @@ impl Tokenizer {
     }
 
     pub fn next_token(&mut self) -> Option<Token> {
-        let current_slice = &self.source_code[self.current_loc..];
+        let current_slice = &self.source_code[self.current_pointer..];
         let char_iterator = current_slice.chars();
 
         for rule in self.rules.iter() {
@@ -308,23 +325,41 @@ impl Tokenizer {
             
             // skip whitespace and comments
             if len != 0 && kind.is_none() {
-                self.current_loc += len;
+                let mut whitespace_slice = &current_slice[0..len];
+                dbg!(whitespace_slice);
+
+                let mut reset_col = false;
+                while let Some(idx) = whitespace_slice.find("\n") {
+                    self.current_loc.row += 1;
+                    whitespace_slice = &whitespace_slice.split_at(idx+1).1;
+                    reset_col = true;
+                }
+                
+                if reset_col {
+                    self.current_loc.col = whitespace_slice.len() + 1;
+                } else {
+                    self.current_loc.col += whitespace_slice.len();
+                }
+
+                self.current_pointer += len;
                 return self.next_token();
             }
 
             if len != 0 {
                 if let Some(kind) = kind {
                     let (start, end) = if kind == TokenKind::String {
-                        (self.current_loc+1, self.current_loc+len-1) 
+                        (self.current_pointer+1, self.current_pointer+len-1) 
                     } else {
-                        (self.current_loc, self.current_loc+len)
+                        (self.current_pointer, self.current_pointer+len)
                     };
 
                     let token = Token::new(
-                        self.current_loc, 
+                        self.current_loc.clone(), 
+                        self.current_pointer,
                         kind, 
                         self.source_code[start..end].to_owned());                
-                    self.current_loc += len;
+                    self.current_pointer += len;
+                    self.current_loc.col += len;
                     return Some(token);
                 }
             }
