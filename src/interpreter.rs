@@ -252,7 +252,7 @@ fn exec_var_decl(context: &mut InterpreterContext, decls: &Vec<(Token, Option<Li
     Ok(())
 }
 
-fn exec_list_decl(context: &mut InterpreterContext, tok: &Token, expr: &Expr) -> InterpreterResult {
+fn exec_list_decl(context: &mut InterpreterContext, tok: &Token, expr: &Expr, init_val: &Vec<Expr>) -> InterpreterResult {
     let capacity = match context.eval(expr)? {
         Literal::String(_) => return Err(InterpreterError::TypeError("String cannot be used as a list".to_string())),
         Literal::Number(num) => {
@@ -269,9 +269,19 @@ fn exec_list_decl(context: &mut InterpreterContext, tok: &Token, expr: &Expr) ->
     };
 
     let mut value = Vec::with_capacity(capacity);
-    for _ in 0..capacity {
+    if capacity < init_val.len() {
+        return Err(InterpreterError::IndexOutOfBounds);
+    }
+
+    for val in init_val {
+        let lit = context.eval(val)?;
+        value.push(Box::new(lit));
+    }
+
+    for _ in 0..(capacity - init_val.len()) {
         value.push(Box::new(Literal::Number(0)));
     }
+    
     let list = Name::make_var(&tok.symbols, Some(Literal::List(value)));
     context.names.push(list);
     Ok(())
@@ -329,7 +339,7 @@ fn exec_block(context: &mut InterpreterContext, block: &Block) -> InterpreterRes
             Statement::ListReassign(tok, idx_expr, val_expr) => exec_list_reassign(context, tok, idx_expr, val_expr)?,
             Statement::ConstAssign(assigns) => exec_const_assign(context, assigns)?,
             Statement::VarDecl(decls) => exec_var_decl(context, decls)?,
-            Statement::ListDecl(tok, expr) => exec_list_decl(context, tok, expr)?,
+            Statement::ListDecl(tok, expr, init_val) => exec_list_decl(context, tok, expr, init_val)?,
             Statement::If(cond, if_block, else_block) => exec_if(context, cond, if_block, else_block.as_ref())?,
             Statement::While(cond, block) => exec_while(context, cond, block)?,
             Statement::BuiltIn(tok, args) => exec_built_in(context, tok, args)?,

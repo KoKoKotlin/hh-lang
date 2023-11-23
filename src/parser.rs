@@ -28,7 +28,7 @@ const MULITPLICATIVE_OPERATORS: [TokenKind; 1] = [
  * Program   => Block == Vec<Statment>
  * Block     => [ "let" IDENT "=" Literal {, IDENT "=" Literal } ";" ]
  *              [ "var" IDENT { "=" Literal } {, IDENT {"=" Literal}} ";" ]
- *              [ "list" IDENT "[" Expr "]" ";" ]
+ *              [ "list" IDENT "[" Expr "]" { = "[" {Expr, } "]" } ";" ]
  *              [ Statement ]
  * Statement => IDENT "=" Expr ";"
  *              IDENT "[" Expr "]" "=" Expr ";"
@@ -216,9 +216,31 @@ impl Parser {
         self.consume(&[OpeningBracket]).ok_or(())?;
         let expr = self.expr()?;
         self.consume(&[ClosingBracket]).ok_or(())?;
+
+        let mut exprs = vec![];
+        match self.peek() {
+            Some(Equals) => {
+                self.consume(&[Equals]).ok_or(())?;
+                self.consume(&[OpeningBracket]).ok_or(())?;
+
+                while let Some(kind) = self.peek() {
+                    if kind == ClosingBracket { break; }
+                    exprs.push(self.expr()?);
+
+                    // this allows for trailing commas in list exprs
+                    if let Some(kind) = self.peek() {
+                        if kind == Comma { self.consume(&[Comma]).ok_or(())?; }
+                    }
+                }
+
+                self.consume(&[ClosingBracket]).ok_or(())?;
+            },
+            _ => {},
+        }
+
         self.consume(&[Semicolon]).ok_or(())?;
 
-        return Ok(Statement::ListDecl(ident, expr));
+        return Ok(Statement::ListDecl(ident, expr, exprs));
     }
 
     fn reassign(&mut self) -> Result<Statement, ()> {
