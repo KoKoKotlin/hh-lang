@@ -33,6 +33,7 @@ pub enum Expr {
 pub enum Literal {
     String(String),
     Number(i64),
+    List(Vec<Box<Literal>>),
     True,
     False,
     Unit,
@@ -49,6 +50,7 @@ impl Literal {
         match self {
             Literal::String(str) => !str.is_empty(),
             Literal::Number(num) => *num != 0,
+            Literal::List(values) => values.len() != 0, 
             Literal::True => true,
             Literal::False => false,
             Literal::Unit => false,
