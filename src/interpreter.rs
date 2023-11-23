@@ -1,5 +1,6 @@
-use crate::{ast::{Program, Literal, Block, Statement, Expr}, tokenizer::Token};
+use crate::{ast::{Program, Literal, Block, Statement, Expr}, tokenizer::{Token, TokenKind}};
 
+#[derive(Debug)]
 struct Variable {
     name: String,
     value: Option<Literal>,
@@ -16,20 +17,18 @@ impl Variable {
     }
 }
 
-struct InterpreterContext {
+#[derive(Debug)]
+pub struct InterpreterContext {
     variables: Vec<Variable>,
-}
-
-impl InterpreterContext {
-    fn eval(&self, expr: &Expr) -> Literal {
-        todo!()
-    } 
 }
 
 #[derive(Debug)]
 pub enum InterpreterError {
     VariableDoesNotExists,
     ConstantReassign,
+    VariableNotInitialized,
+    UndefinedBinOperation(Literal, Token, Literal),
+    DivisionByZero,
 }
 
 pub type InterpreterResult = Result<(), InterpreterError>;
@@ -39,7 +38,7 @@ impl InterpreterContext {
         Self { variables: vec![] }
     }
 
-    pub fn get_var(&mut self, name: &str) -> Option<&mut Variable> {
+    fn get_var(&mut self, name: &str) -> Option<&mut Variable> {
         for var in self.variables.iter_mut() {
             if var.name == name { return Some(var); }
         }
@@ -47,8 +46,71 @@ impl InterpreterContext {
         None
     }
 
-    pub fn var_exists(&self, name: &str) -> bool {
+    fn var_exists(&self, name: &str) -> bool {
         self.variables.iter().any(|var| var.name == name)
+    }
+
+    fn get_var_value(&self, name: &str) -> Result<Literal, InterpreterError> {
+        for var in self.variables.iter() {
+            if var.name == name { 
+                let lit = var.value.clone();
+                if let Some(lit) = lit {
+                    return Ok(lit);
+                } else {
+                    return Err(InterpreterError::VariableNotInitialized);
+                }
+            }
+        }
+
+        Err(InterpreterError::VariableDoesNotExists)
+    }
+
+    fn eval(&self, expr: &Expr) -> Result<Literal, InterpreterError> {
+        match expr {
+            Expr::Binary(left, op, right) => {
+                let left = self.eval(&left)?;
+                let right = self.eval(&right)?;
+                apply_op(&left, op, &right)
+            },
+            Expr::Literal(lit) => Ok(lit.clone()),
+            Expr::Ident(tok) => {
+                self.get_var_value(&tok.symbols)
+            },
+        }
+    }
+}
+
+fn apply_op(left: &Literal, op: &Token, right: &Literal) -> Result<Literal, InterpreterError> {
+    use TokenKind::*;
+
+    return match op.kind {
+        Plus => {
+            match (left, right) {
+                (Literal::Number(left), Literal::Number(right)) => Ok(Literal::Number(left + right)),
+                (Literal::String(left), Literal::String(right)) => Ok(Literal::String(format!("{}{}", left, right))),
+                _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
+            }
+        },
+        Minus => {
+            match (left, right) {
+                (Literal::Number(left), Literal::Number(right)) => Ok(Literal::Number(left - right)),
+                _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
+            }
+        },
+        Times => {
+            match (left, right) {
+                (Literal::Number(left), Literal::Number(right)) => Ok(Literal::Number(left * right)),
+                _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
+            }
+        },
+        Div => {
+            match (left, right) {
+                (Literal::Number(left), Literal::Number(right)) if *right != 0 => Ok(Literal::Number(left / right)),
+                (Literal::Number(_), Literal::Number(right)) if *right == 0 => Err(InterpreterError::DivisionByZero),
+                _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
+            }
+        },
+        _ => unimplemented!(),
     }
 }
 
@@ -64,7 +126,7 @@ fn exec_reassign(context: &mut InterpreterContext, tok: &Token, expr: &Expr) -> 
         return Err(InterpreterError::ConstantReassign);
     }
 
-    var.value = Some(result);
+    var.value = Some(result?);
 
     Ok(())
 }
@@ -88,7 +150,7 @@ fn exec_var_decl(context: &mut InterpreterContext, decls: &Vec<(Token, Option<Li
 }
 
 fn exec_if(context: &mut InterpreterContext, cond: &Expr, if_block: &Block, else_block: Option<&Block>) -> InterpreterResult {
-    let cond = context.eval(cond);
+    let cond = context.eval(cond)?;
 
     if cond.is_truthy() {
         exec_block(context, if_block)?;
@@ -99,11 +161,12 @@ fn exec_if(context: &mut InterpreterContext, cond: &Expr, if_block: &Block, else
     Ok(())
 }
 
-fn exec_while(context: &mut InterpreterContext, cond: &Expr, block: &Block) -> InterpreterResult {
-    let cond = context.eval(cond);
+fn exec_while(context: &mut InterpreterContext, cond_expr: &Expr, block: &Block) -> InterpreterResult {
 
+    let mut cond = context.eval(cond_expr)?;
     while cond.is_truthy() {
         exec_block(context, block)?;
+        cond = context.eval(cond_expr)?;
     }
 
     Ok(())
@@ -123,12 +186,15 @@ fn exec_block(context: &mut InterpreterContext, block: &Block) -> InterpreterRes
     Ok(())
 }
 
-pub fn interprete_ast(root_node: Program) -> InterpreterResult {
+pub fn interprete_ast(root_node: Program) -> (InterpreterResult, InterpreterContext) {
     let mut context = InterpreterContext::new();
 
     for block in root_node.0 {
-        exec_block(&mut context, &block)?;
+        match exec_block(&mut context, &block) {
+            Ok(_) => {},
+            Err(err) => return (Err(err), context),
+        }
     }
 
-    Ok(())
+    (Ok(()), context)
 }

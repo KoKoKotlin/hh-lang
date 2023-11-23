@@ -26,7 +26,7 @@ pub enum Expr {
 #[derive(Clone, Debug)]
 pub enum Literal {
     String(String),
-    Number(u32),
+    Number(i64),
     True,
     False,
     Unit,

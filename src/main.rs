@@ -25,6 +25,7 @@ fn main() {
     let ast_root = parser.parse();
 
     if let Ok(ast_root) = ast_root {
-        println!("{:?}", interprete_ast(ast_root));
+        let (err, context) = interprete_ast(ast_root);
+        println!("Err: {:?}\nContext: {:?}", err, context);
     }
 }

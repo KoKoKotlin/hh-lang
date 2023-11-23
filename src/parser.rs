@@ -254,7 +254,7 @@ impl Parser {
         let token = self.consume(&[Number, String, True, False]).ok_or(())?;
         
         Ok(match token.kind {
-            Number => Literal::Number(token.symbols.parse::<u32>().unwrap()),
+            Number => Literal::Number(token.symbols.parse::<i64>().unwrap()),
             String => Literal::String(token.symbols),
             True   => Literal::True,
             False  => Literal::False,
