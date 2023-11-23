@@ -24,25 +24,33 @@ const MULITPLICATIVE_OPERATORS: [TokenKind; 1] = [
     TokenKind::Times,
 ];
 
+const BUILT_INS: [TokenKind; 2] = [
+    TokenKind::Print,
+    TokenKind::Println,
+];
+
 /** Current Grammar:
- * Program   => Block == Vec<Statment>
- * Block     => [ "let" IDENT "=" Literal {, IDENT "=" Literal } ";" ]
- *              [ "var" IDENT { "=" Literal } {, IDENT {"=" Literal}} ";" ]
- *              [ "list" IDENT "[" Expr "]" { = "[" {Expr, } "]" } ";" ]
- *              [ Statement ]
- * Statement => IDENT "=" Expr ";"
- *              IDENT "[" Expr "]" "=" Expr ";"
- *              "if" Expr "then" Block {"else" Block} "end"
- *              "while" Expr "then" Block "end"
- *              BuiltIn { Expr {, Expr} } ";"
- *              "func" IDENT {IDENT} "start" Block "end"
- *              "call" IDENT {IDENT} ";"
- * Expr      => {UN_OP} Term { ADD_OP term }
- * ExprList  => { Expr, }
- * Term      => Factor { MULT_OP Factor }
- * Factor    => IDENT | IDENT "[" Expr "]" | NUMBER | STRING | "(" Expr ")"
- * Literal   => NUMBER | STRING | BOOL
- * BuiltIn   => "print"
+ * Program     => BlockList == Vec<Statement>
+ * Block       => [ "let" IDENT "=" Literal {, IDENT "=" Literal } ";" ]
+ *                [ "var" IDENT { "=" Literal } {, IDENT {"=" Literal}} ";" ]
+ *                [ "list" IDENT "[" Expr "]" { = "[" {Expr, } "]" } ";" ]
+ *                [ Statement ]
+ * Statement   => IDENT "=" Expr ";"
+ *                IDENT "[" Expr "]" "=" Expr ";"
+ *                "if" Expr "then" Block {"else" Block} "end"
+ *                "while" Expr "do" Block "end"
+ *                "func" IDENT {IDENT} "start" Block "end"
+ *                Expr ";"
+ * Expr        => {UN_OP} Term { ADD_OP term } |
+ *                FuncCall |
+ *                BuiltInCall
+ * ExprList    => { Expr, }
+ * FuncCall    => "call" IDENT {IDENT}
+ * BuiltInCall => BuiltIn { Expr {, Expr} }
+ * Term        => Factor { MULT_OP Factor }
+ * Factor      => IDENT | IDENT "[" Expr "]" | NUMBER | STRING | "(" Expr ")"
+ * Literal     => NUMBER | STRING | BOOL
+ * BuiltIn     => "print" | "println"
  */
 
 impl Parser {
@@ -80,14 +88,13 @@ impl Parser {
                 Ident => self.reassign()?,
                 If => self.fi()?,
                 While => self.elihw()?,
-                Print | Println => self.built_in()?,
                 Func => self.func()?,
-                Call => self.call()?,
                 End | Else => { break; }
+                // if all else fails try to parse the next statement as a standalone expression
                 _ => {
-                    let head = self.get();
-                    consume_error(self, head.as_ref(), &[Let, Var, Ident, If, While, Print, Println, Func, Call, End, Else]);
-                    return Err(());
+                    let expr = self.expr()?;
+                    let _ = self.consume(&[Semicolon]).ok_or(());
+                    Statement::Expr(expr)
                 },
             });
         }
@@ -95,23 +102,21 @@ impl Parser {
         Ok(Block(statements))
     }
 
-    fn built_in(&mut self) -> Result<Statement, ()> {
+    fn built_in(&mut self) -> Result<Expr, ()> {
         use TokenKind::*;
 
         match self.peek() {
             Some(Print) => {
                 let print_tok = self.consume(&[Print]).ok_or(())?;
                 let args = self.expr_list(Some(Comma), Semicolon)?;
-                self.consume(&[Semicolon]).ok_or(())?;
 
-                return Ok(Statement::BuiltIn(print_tok, args));
+                return Ok(Expr::BuiltInCall(print_tok, args));
             },
             Some(Println) => {
                 let print_tok = self.consume(&[Println]).ok_or(())?;
                 let args = self.expr_list(Some(Comma), Semicolon)?;
-                self.consume(&[Semicolon]).ok_or(())?;
 
-                return Ok(Statement::BuiltIn(print_tok, args));
+                return Ok(Expr::BuiltInCall(print_tok, args));
             },
             _ => unreachable!(),
         }
@@ -163,15 +168,14 @@ impl Parser {
         Ok(Statement::FuncDecl(func_name, args_list, code))
     }
 
-    fn call(&mut self) -> Result<Statement, ()> {
+    fn call(&mut self) -> Result<Expr, ()> {
         use TokenKind::*;
-
+        
         self.consume(&[Call]).ok_or(())?;
         let func_name = self.consume(&[Ident]).ok_or(())?;
         let args_exprs = self.expr_list(None, Semicolon)?;
-        self.consume(&[Semicolon]).ok_or(())?;
 
-        Ok(Statement::FuncCall(func_name, args_exprs))
+        Ok(Expr::FuncCall(func_name, args_exprs))
     }
 
     fn let_binding(&mut self) -> Result<Statement, ()> {
@@ -288,17 +292,23 @@ impl Parser {
 
     fn expr(&mut self) -> Result<Expr, ()> {
         use TokenKind::*;
-
-        let left = self.term()?;
+        
         match self.peek() {
-            Some(Plus) | Some(Minus) => {
-                let operator = self.consume(&ADDITIVE_OPERATORS).ok_or(())?;
-                let right = self.expr()?;
-
-                return Ok(Expr::Binary(Box::new(left), operator, Box::new(right)));
-            },
+            Some(Call) => return self.call(),
+            Some(kind) if BUILT_INS.contains(&kind) => return self.built_in(),
             _ => {
-                return Ok(left);
+                let left = self.term()?;
+                match self.peek() {
+                    Some(Plus) | Some(Minus) => {
+                        let operator = self.consume(&ADDITIVE_OPERATORS).ok_or(())?;
+                        let right = self.expr()?;
+        
+                        return Ok(Expr::Binary(Box::new(left), operator, Box::new(right)));
+                    },
+                    _ => {
+                        return Ok(left);
+                    }
+                }
             }
         }
     }
@@ -409,7 +419,7 @@ impl Parser {
         while let Some(kind) = self.peek() {
             if kind == end { break; }
             exprs.push(self.expr()?);
-
+ 
             if let Some(sep) = sep {
                 if Some(end) == self.peek() { break; }
                 self.consume(&[sep]).ok_or(())?;

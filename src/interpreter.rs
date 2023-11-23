@@ -100,14 +100,14 @@ pub struct InterpreterContext {
 pub enum InterpreterError {
     VariableDoesNotExists(Token),
     ConstantReassign(Token),
-    ListReassign,
     VariableNotInitialized(Token),
     UndefinedBinOperation(Literal, Token, Literal),
-    DivisionByZero,
-    TypeError(String),
-    ValueError(String),
-    IndexOutOfBounds,
-    FunctionNotDeclared,
+    DivisionByZero(Token),
+    TypeError(Token, String),
+    ValueError(Token, String),
+    IndexOutOfBounds(Token),
+    FunctionNotDeclared(Token),
+    CallArgumentCount(Token),
 }
 
 pub type InterpreterResult = Result<(), InterpreterError>;
@@ -164,33 +164,33 @@ impl InterpreterContext {
         }
     }
 
-    fn index_var(&self, tok: &Token, idx_expr: &Expr) -> Result<Literal, InterpreterError> {
+    fn index_var(&mut self, tok: &Token, idx_expr: &Expr) -> Result<Literal, InterpreterError> {
         let name_lit = self.get_var_value(tok)?;
-        self.index(&name_lit, idx_expr)
+        self.index(tok,&name_lit, idx_expr)
     }
 
-    fn index(&self, lit: &Literal, idx_expr: &Expr) -> Result<Literal, InterpreterError> {
+    fn index(&mut self, tok: &Token, lit: &Literal, idx_expr: &Expr) -> Result<Literal, InterpreterError> {
         if let Literal::Number(idx) = self.eval(idx_expr)? {
             if idx < 0 {
-                return Err(InterpreterError::IndexOutOfBounds);
+                return Err(InterpreterError::IndexOutOfBounds(tok.clone()));
             }
 
             match lit {
-                Literal::String(str) => return Err(InterpreterError::TypeError("String cannot be indexed".to_string())),
-                Literal::Number(_) => return Err(InterpreterError::TypeError("Number cannot be indexed".to_string())),
-                Literal::True => return Err(InterpreterError::TypeError("Bool cannot be indexed".to_string())),
-                Literal::False => return Err(InterpreterError::TypeError("Bool cannot be indexed".to_string())),
-                Literal::Unit => return Err(InterpreterError::TypeError("Unit cannot be indexed".to_string())),
+                Literal::String(str) => return Err(InterpreterError::TypeError(tok.clone(), "String cannot be indexed".to_string())),
+                Literal::Number(_) => return Err(InterpreterError::TypeError(tok.clone(), "Number cannot be indexed".to_string())),
+                Literal::True => return Err(InterpreterError::TypeError(tok.clone(), "Bool cannot be indexed".to_string())),
+                Literal::False => return Err(InterpreterError::TypeError(tok.clone(), "Bool cannot be indexed".to_string())),
+                Literal::Unit => return Err(InterpreterError::TypeError(tok.clone(), "Unit cannot be indexed".to_string())),
                 Literal::List(values) => {
                     if idx as usize >= values.len() {
-                        return Err(InterpreterError::IndexOutOfBounds);
+                        return Err(InterpreterError::IndexOutOfBounds(tok.clone()));
                     }
 
                     return Ok(*values[idx as usize].clone());
                 },
             }
         } else {
-            return Err(InterpreterError::TypeError("Indices must be Number".to_string()));
+            return Err(InterpreterError::TypeError(tok.clone(), "Indices must be Number".to_string()));
         }
     }
 
@@ -201,7 +201,7 @@ impl InterpreterContext {
         if let Some(name) = self.get_name(tok) {
             if let Literal::Number(idx) = idx_lit {
                 if idx < 0 {
-                    return Err(InterpreterError::IndexOutOfBounds);
+                    return Err(InterpreterError::IndexOutOfBounds(tok.clone()));
                 }
 
                 if name.value.is_none() {
@@ -209,14 +209,14 @@ impl InterpreterContext {
                 }
 
                 match name.value.as_mut().unwrap() {
-                    Literal::String(_) => return Err(InterpreterError::TypeError("String cannot be indexed".to_string())),
-                    Literal::Number(_) => return Err(InterpreterError::TypeError("Number cannot be indexed".to_string())),
-                    Literal::True => return Err(InterpreterError::TypeError("Bool cannot be indexed".to_string())),
-                    Literal::False => return Err(InterpreterError::TypeError("Bool cannot be indexed".to_string())),
-                    Literal::Unit => return Err(InterpreterError::TypeError("Unit cannot be indexed".to_string())),
+                    Literal::String(_) => return Err(InterpreterError::TypeError(tok.clone(), "String cannot be indexed".to_string())),
+                    Literal::Number(_) => return Err(InterpreterError::TypeError(tok.clone(), "Number cannot be indexed".to_string())),
+                    Literal::True => return Err(InterpreterError::TypeError(tok.clone(), "Bool cannot be indexed".to_string())),
+                    Literal::False => return Err(InterpreterError::TypeError(tok.clone(), "Bool cannot be indexed".to_string())),
+                    Literal::Unit => return Err(InterpreterError::TypeError(tok.clone(), "Unit cannot be indexed".to_string())),
                     Literal::List(ref mut values) => {
                         if idx as usize >= values.len() {
-                            return Err(InterpreterError::IndexOutOfBounds);
+                            return Err(InterpreterError::IndexOutOfBounds(tok.clone()));
                         }
 
                         values[idx as usize] = Box::new(result);
@@ -224,14 +224,14 @@ impl InterpreterContext {
                     },
                 }
             } else {
-                return Err(InterpreterError::TypeError("Indices must be Number".to_string()));
+                return Err(InterpreterError::TypeError(tok.clone(), "Indices must be Number".to_string()));
             }
         } else {
             return Err(InterpreterError::VariableDoesNotExists(tok.clone()));
         }
     }
 
-    fn eval(&self, expr: &Expr) -> Result<Literal, InterpreterError> {
+    fn eval(&mut self, expr: &Expr) -> Result<Literal, InterpreterError> {
         match expr {
             Expr::Binary(left, op, right) => {
                 let left = self.eval(&left)?;
@@ -243,6 +243,8 @@ impl InterpreterContext {
                 self.get_var_value(tok)
             },
             Expr::IdentIndexed(tok, idx_expr) => self.index_var(tok, idx_expr),
+            Expr::BuiltInCall(tok, args) => exec_built_in(self, tok, args),
+            Expr::FuncCall(func_name, args_exprs) => exec_func_call(self, func_name, args_exprs), 
         }
     }
 
@@ -253,8 +255,12 @@ impl InterpreterContext {
         None
     }
 
-    fn exec_func(&mut self, func_name: &Token, args_exprs: &Vec<Expr>) -> InterpreterResult {
+    fn exec_func(&mut self, func_name: &Token, args_exprs: &Vec<Expr>) -> Result<Literal, InterpreterError> {
         if let Some(func) = self.get_func(func_name) {
+            if func.args.len() != args_exprs.len() {
+                return Err(InterpreterError::CallArgumentCount(func_name.clone()));
+            }
+
             let args_lits: Result<Vec<Literal>, InterpreterError> = args_exprs.iter()
                 .map(|expr| self.eval(expr))
                 .collect();
@@ -265,10 +271,10 @@ impl InterpreterContext {
             exec_block(self, &func.code)?;
             let _ = self.scope_stack.pop();
         } else {
-            return Err(InterpreterError::FunctionNotDeclared);
+            return Err(InterpreterError::FunctionNotDeclared(func_name.clone()));
         }
 
-        Ok(())
+        Ok(Literal::Unit)
     }
 }
 
@@ -301,7 +307,7 @@ fn apply_op(left: &Literal, op: &Token, right: &Literal) -> Result<Literal, Inte
         Div => {
             match (left, right) {
                 (Literal::Number(left), Literal::Number(right)) if *right != 0 => Ok(Literal::Number(left / right)),
-                (Literal::Number(_), Literal::Number(right)) if *right == 0 => Err(InterpreterError::DivisionByZero),
+                (Literal::Number(_), Literal::Number(right)) if *right == 0 => Err(InterpreterError::DivisionByZero(op.clone())),
                 _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
             }
         },
@@ -354,23 +360,23 @@ fn exec_var_decl(context: &mut InterpreterContext, decls: &Vec<(Token, Option<Li
 
 fn exec_list_decl(context: &mut InterpreterContext, tok: &Token, expr: &Expr, init_val: &Vec<Expr>) -> InterpreterResult {
     let capacity = match context.eval(expr)? {
-        Literal::String(_) => return Err(InterpreterError::TypeError("String cannot be used as a list".to_string())),
+        Literal::String(_) => return Err(InterpreterError::TypeError(tok.clone(), "String cannot be used as a list".to_string())),
         Literal::Number(num) => {
             if num < 0 {
-                return Err(InterpreterError::ValueError("Number cannot be negative".to_string()));
+                return Err(InterpreterError::ValueError(tok.clone(), "Number cannot be negative".to_string()));
             }
 
             num as usize
         },
-        Literal::True => return Err(InterpreterError::TypeError("Bool cannot be used as a list".to_string())),
-        Literal::False => return Err(InterpreterError::TypeError("Bool cannot be used as a list".to_string())),
-        Literal::Unit => return Err(InterpreterError::TypeError("Unit cannot be used as a list".to_string())),
-        Literal::List(_) => return Err(InterpreterError::TypeError("List cannot be used as a list".to_string())),
+        Literal::True => return Err(InterpreterError::TypeError(tok.clone(), "Bool cannot be used as a list".to_string())),
+        Literal::False => return Err(InterpreterError::TypeError(tok.clone(), "Bool cannot be used as a list".to_string())),
+        Literal::Unit => return Err(InterpreterError::TypeError(tok.clone(), "Unit cannot be used as a list".to_string())),
+        Literal::List(_) => return Err(InterpreterError::TypeError(tok.clone(), "List cannot be used as a list".to_string())),
     };
 
     let mut value = Vec::with_capacity(capacity);
     if capacity < init_val.len() {
-        return Err(InterpreterError::IndexOutOfBounds);
+        return Err(InterpreterError::IndexOutOfBounds(tok.clone()));
     }
 
     for val in init_val {
@@ -409,7 +415,7 @@ fn exec_while(context: &mut InterpreterContext, cond_expr: &Expr, block: &Block)
     Ok(())
 }
 
-fn exec_built_in(context: &mut InterpreterContext, tok: &Token, args: &Vec<Expr>) -> InterpreterResult {
+fn exec_built_in(context: &mut InterpreterContext, tok: &Token, args: &Vec<Expr>) -> Result<Literal, InterpreterError> {
     use TokenKind::*;
 
     match tok.kind {
@@ -429,7 +435,7 @@ fn exec_built_in(context: &mut InterpreterContext, tok: &Token, args: &Vec<Expr>
         _ => unimplemented!("BuiltIn {:?} not implemented yet", tok.kind),
     }
 
-    Ok(())
+    Ok(Literal::Unit)
 }
 
 fn exec_func_decl(context: &mut InterpreterContext, func_name: &Token, args: &Vec<Token>, code: &Block) -> InterpreterResult {
@@ -437,8 +443,13 @@ fn exec_func_decl(context: &mut InterpreterContext, func_name: &Token, args: &Ve
     Ok(())
 }
 
-fn exec_func_call(context: &mut InterpreterContext, func_name: &Token, args_exprs: &Vec<Expr>) -> InterpreterResult {
+fn exec_func_call(context: &mut InterpreterContext, func_name: &Token, args_exprs: &Vec<Expr>) -> Result<Literal, InterpreterError> {
     context.exec_func(func_name, args_exprs)
+}
+
+fn exec_expr(context: &mut InterpreterContext, expr: &Expr) -> InterpreterResult {
+    let _ = context.eval(expr)?;
+    Ok(())
 }
 
 fn exec_block(context: &mut InterpreterContext, block: &Block) -> InterpreterResult {
@@ -451,9 +462,8 @@ fn exec_block(context: &mut InterpreterContext, block: &Block) -> InterpreterRes
             Statement::ListDecl(tok, expr, init_val) => exec_list_decl(context, tok, expr, init_val)?,
             Statement::If(cond, if_block, else_block) => exec_if(context, cond, if_block, else_block.as_ref())?,
             Statement::While(cond, block) => exec_while(context, cond, block)?,
-            Statement::BuiltIn(tok, args) => exec_built_in(context, tok, args)?,
             Statement::FuncDecl(func_name, args, code) => exec_func_decl(context, func_name, args, code)?,
-            Statement::FuncCall(func_name, args_exprs) => exec_func_call(context, func_name, args_exprs)?,
+            Statement::Expr(expr) => exec_expr(context, expr)?,
         }
     }
 

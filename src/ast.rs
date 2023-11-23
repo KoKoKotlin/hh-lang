@@ -17,9 +17,8 @@ pub enum Statement {
     ListDecl(Token, Expr, Vec<Expr>),
     If(Expr, Block, Option<Block>),
     While(Expr, Block),
-    BuiltIn(Token, Vec<Expr>),
     FuncDecl(Token, Vec<Token>, Block),
-    FuncCall(Token, Vec<Expr>),
+    Expr(Expr),
 }
 
 #[derive(Debug, Clone)]
@@ -29,6 +28,8 @@ pub enum Expr {
     Literal(Literal),
     Ident(Token),
     IdentIndexed(Token, Box<Expr>),
+    FuncCall(Token, Vec<Expr>),
+    BuiltInCall(Token, Vec<Expr>),
 }
 
 #[derive(Clone, Debug)]
