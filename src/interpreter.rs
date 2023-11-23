@@ -1,6 +1,55 @@
-use std::env::var;
-
 use crate::{ast::{Program, Literal, Block, Statement, Expr}, tokenizer::{Token, TokenKind}};
+
+#[derive(Debug)]
+struct Scope {
+    names: Vec<Name>,
+}
+
+impl Scope {
+    fn new(init: Option<Vec<(&Token, &Literal)>>) -> Self {
+
+        if let Some(init) = init {
+            let mut names = vec![];
+
+            for (token, lit) in init.into_iter() {
+                names.push(Name::make_var(&token.symbols, Some(lit.clone())));
+            }            
+            Self { names }
+        } else {
+            Self { names: vec![] }
+        }
+    }
+
+    fn get_name(&mut self, tok: &Token) -> Option<&mut Name> {
+        for var in self.names.iter_mut() {
+            if var.name == tok.symbols { return Some(var); }
+        }
+
+        None
+    }
+
+    fn name_exists(&self, tok: &Token) -> bool {
+        self.names.iter().any(|n| n.name == tok.symbols)
+    }
+
+    fn get_var_value(&self, tok: &Token) -> Result<Literal, InterpreterError> {
+        for name in self.names.iter() {
+            if name.name == tok.symbols {
+                if let Some(value) = &name.value {
+                    return Ok(value.clone());
+                } else {
+                    return Err(InterpreterError::VariableNotInitialized(tok.clone()));
+                }
+            }
+        }
+
+        Err(InterpreterError::VariableDoesNotExists(tok.clone()))
+    }
+
+    fn push(&mut self, name: Name) {
+        self.names.push(name);
+    }
+}
 
 #[derive(Debug)]
 struct Name {
@@ -18,15 +67,6 @@ impl Name {
         self.constant
     }
 
-    fn reassign(&mut self, value: &Literal) -> InterpreterResult {
-        if self.is_const() {
-            Err(InterpreterError::ConstantReassign)
-        } else {
-            self.value = Some(value.clone());
-            Ok(())
-        }
-    }
-
     fn make_const(name: &str, value: Literal) -> Self {
         Self { name: name.to_string(), value: Some(value), constant: true }
     }
@@ -36,59 +76,76 @@ impl Name {
     }
 }
 
+#[derive(Debug, Clone)]
+struct Func {
+    pub name: String,
+    pub args: Vec<Token>,
+    pub code: Block,
+}
+
+impl Func {
+    fn new(name: &str, args: &Vec<Token>, code: &Block) -> Self {
+        Self { name: name.to_owned(), args: args.clone(), code: code.clone() }
+    }
+}
+
 #[derive(Debug)]
 pub struct InterpreterContext {
-    names: Vec<Name>,
+    func_decls: Vec<Func>,
+    global_scope: Scope,
+    scope_stack: Vec<Scope>,
 }
 
 #[derive(Debug)]
 pub enum InterpreterError {
-    VariableDoesNotExists,
-    ConstantReassign,
+    VariableDoesNotExists(Token),
+    ConstantReassign(Token),
     ListReassign,
-    VariableNotInitialized,
+    VariableNotInitialized(Token),
     UndefinedBinOperation(Literal, Token, Literal),
     DivisionByZero,
     TypeError(String),
     ValueError(String),
     IndexOutOfBounds,
+    FunctionNotDeclared,
 }
 
 pub type InterpreterResult = Result<(), InterpreterError>;
 
 impl InterpreterContext {
     pub fn new() -> Self {
-        Self { names: vec![] }
+        Self { global_scope: Scope::new(None), func_decls: vec![], scope_stack: vec![] }
     }
 
-    fn get_name(&mut self, name: &str) -> Option<&mut Name> {
-        for var in self.names.iter_mut() {
-            if var.name == name { return Some(var); }
-        }
+    fn get_name(&mut self, tok: &Token) -> Option<&mut Name> {
+        if let Some(scope) = self.scope_stack.last_mut() {
+            if let Some(name) = scope.get_name(tok) {
+                return Some(name);
+            }
+        } else if let Some(name) = self.global_scope.get_name(tok) {
+            return Some(name);
+        } 
 
         None
     }
 
-    fn name_exists(&self, name: &str) -> bool {
-        self.names.iter().any(|n| n.name == name)
+    fn name_exists(&self, tok: &Token) -> bool {
+        let exists_globally = self.global_scope.name_exists(tok);
+        self.scope_stack.last().map_or(exists_globally, |scope| scope.name_exists(tok))
     }
 
-    fn get_var_value(&self, var_name: &str) -> Result<Literal, InterpreterError> {
-        for name in self.names.iter() {
-            if name.name == var_name {
-                if let Some(value) = &name.value {
-                    return Ok(value.clone());
-                } else {
-                    return Err(InterpreterError::VariableNotInitialized);
-                }
-            }
+    fn get_var_value(&self, tok: &Token) -> Result<Literal, InterpreterError> {
+        if !self.name_exists(tok) { return Err(InterpreterError::VariableDoesNotExists(tok.clone())) };
+
+        if let Some(scope) = self.scope_stack.last() {
+            scope.get_var_value(tok)
+        } else {
+            self.global_scope.get_var_value(tok)
         }
-
-        Err(InterpreterError::VariableDoesNotExists)
     }
 
-    fn index_var(&self, var_name: &str, idx_expr: &Expr) -> Result<Literal, InterpreterError> {
-        let name_lit = self.get_var_value(var_name)?;
+    fn index_var(&self, tok: &Token, idx_expr: &Expr) -> Result<Literal, InterpreterError> {
+        let name_lit = self.get_var_value(tok)?;
         self.index(&name_lit, idx_expr)
     }
 
@@ -117,18 +174,18 @@ impl InterpreterContext {
         }
     }
 
-    fn assign_indexed(&mut self, var_name: &str, idx_expr: &Expr, val_expr: &Expr) -> InterpreterResult {
+    fn assign_indexed(&mut self, tok: &Token, idx_expr: &Expr, val_expr: &Expr) -> InterpreterResult {
         let idx_lit = self.eval(idx_expr)?;
         let result = self.eval(val_expr)?;
 
-        if let Some(name) = self.get_name(var_name) {
+        if let Some(name) = self.get_name(tok) {
             if let Literal::Number(idx) = idx_lit {
                 if idx < 0 {
                     return Err(InterpreterError::IndexOutOfBounds);
                 }
 
                 if name.value.is_none() {
-                    return Err(InterpreterError::VariableNotInitialized);
+                    return Err(InterpreterError::VariableNotInitialized(tok.clone()));
                 }
 
                 match name.value.as_mut().unwrap() {
@@ -150,7 +207,7 @@ impl InterpreterContext {
                 return Err(InterpreterError::TypeError("Indices must be Number".to_string()));
             }
         } else {
-            return Err(InterpreterError::VariableDoesNotExists);
+            return Err(InterpreterError::VariableDoesNotExists(tok.clone()));
         }
     }
 
@@ -163,10 +220,35 @@ impl InterpreterContext {
             },
             Expr::Literal(lit) => Ok(lit.clone()),
             Expr::Ident(tok) => {
-                self.get_var_value(&tok.symbols)
+                self.get_var_value(tok)
             },
-            Expr::IdentIndexed(tok, idx_expr) => self.index_var(&tok.symbols, idx_expr),
+            Expr::IdentIndexed(tok, idx_expr) => self.index_var(tok, idx_expr),
         }
+    }
+
+    fn get_func(&self, func_name: &Token) -> Option<Func> {
+        for func in self.func_decls.iter() {
+            if func.name == func_name.symbols { return Some(func.clone()); }
+        }
+        None
+    }
+
+    fn exec_func(&mut self, func_name: &Token, args_exprs: &Vec<Expr>) -> InterpreterResult {
+        if let Some(func) = self.get_func(func_name) {
+            let args_lits: Result<Vec<Literal>, InterpreterError> = args_exprs.iter()
+                .map(|expr| self.eval(expr))
+                .collect();
+            let args_lits = args_lits?;
+
+            let func_scope = Scope::new(Some(func.args.iter().zip(args_lits.iter()).collect()));
+            self.scope_stack.push(func_scope);
+            exec_block(self, &func.code)?;
+            let _ = self.scope_stack.pop();
+        } else {
+            return Err(InterpreterError::FunctionNotDeclared);
+        }
+
+        Ok(())
     }
 }
 
@@ -208,15 +290,15 @@ fn apply_op(left: &Literal, op: &Token, right: &Literal) -> Result<Literal, Inte
 }
 
 fn exec_reassign(context: &mut InterpreterContext, tok: &Token, expr: &Expr) -> InterpreterResult {
-    if !context.name_exists(&tok.symbols) {
-        return Err(InterpreterError::VariableDoesNotExists);
+    if !context.name_exists(tok) {
+        return Err(InterpreterError::VariableDoesNotExists(tok.clone()));
     }
 
     let result = context.eval(expr);
-    let name = context.get_name(&tok.symbols).unwrap();
+    let name = context.get_name(tok).unwrap();
 
     if name.is_const() {
-        return Err(InterpreterError::ConstantReassign);
+        return Err(InterpreterError::ConstantReassign(tok.clone()));
     }
 
     name.value = Some(result?);
@@ -225,11 +307,11 @@ fn exec_reassign(context: &mut InterpreterContext, tok: &Token, expr: &Expr) -> 
 }
 
 fn exec_list_reassign(context: &mut InterpreterContext, tok: &Token, idx_expr: &Expr, val_expr: &Expr) -> InterpreterResult {
-    if !context.name_exists(&tok.symbols) {
-        return Err(InterpreterError::VariableDoesNotExists);
+    if !context.name_exists(tok) {
+        return Err(InterpreterError::VariableDoesNotExists(tok.clone()));
     }
 
-    context.assign_indexed(&tok.symbols, idx_expr, val_expr)?;
+    context.assign_indexed(tok, idx_expr, val_expr)?;
 
     Ok(())
 }
@@ -237,7 +319,7 @@ fn exec_list_reassign(context: &mut InterpreterContext, tok: &Token, idx_expr: &
 fn exec_const_assign(context: &mut InterpreterContext, assigns: &Vec<(Token, Literal)>) -> InterpreterResult {
     for (tok, lit) in assigns {
         let var = Name::make_const(&tok.symbols, lit.clone());
-        context.names.push(var);
+        context.global_scope.push(var);
     }
 
     Ok(())
@@ -246,7 +328,7 @@ fn exec_const_assign(context: &mut InterpreterContext, assigns: &Vec<(Token, Lit
 fn exec_var_decl(context: &mut InterpreterContext, decls: &Vec<(Token, Option<Literal>)>) -> InterpreterResult {
     for (tok, lit) in decls {
         let var = Name::make_var(&tok.symbols, lit.clone());
-        context.names.push(var);
+        context.global_scope.push(var);
     }
 
     Ok(())
@@ -283,7 +365,7 @@ fn exec_list_decl(context: &mut InterpreterContext, tok: &Token, expr: &Expr, in
     }
     
     let list = Name::make_var(&tok.symbols, Some(Literal::List(value)));
-    context.names.push(list);
+    context.global_scope.push(list);
     Ok(())
 }
 
@@ -323,13 +405,23 @@ fn exec_built_in(context: &mut InterpreterContext, tok: &Token, args: &Vec<Expr>
         Println => {
             for arg in args {
                 let arg = context.eval(arg)?;
-                println!("{}", arg);
+                print!("{}", arg);
             }
+            println!();
         },
         _ => unimplemented!("BuiltIn {:?} not implemented yet", tok.kind),
     }
 
     Ok(())
+}
+
+fn exec_func_decl(context: &mut InterpreterContext, func_name: &Token, args: &Vec<Token>, code: &Block) -> InterpreterResult {
+    context.func_decls.push(Func::new(&func_name.symbols, args, code));
+    Ok(())
+}
+
+fn exec_func_call(context: &mut InterpreterContext, func_name: &Token, args_exprs: &Vec<Expr>) -> InterpreterResult {
+    context.exec_func(func_name, args_exprs)
 }
 
 fn exec_block(context: &mut InterpreterContext, block: &Block) -> InterpreterResult {
@@ -343,6 +435,8 @@ fn exec_block(context: &mut InterpreterContext, block: &Block) -> InterpreterRes
             Statement::If(cond, if_block, else_block) => exec_if(context, cond, if_block, else_block.as_ref())?,
             Statement::While(cond, block) => exec_while(context, cond, block)?,
             Statement::BuiltIn(tok, args) => exec_built_in(context, tok, args)?,
+            Statement::FuncDecl(func_name, args, code) => exec_func_decl(context, func_name, args, code)?,
+            Statement::FuncCall(func_name, args_exprs) => exec_func_call(context, func_name, args_exprs)?,
         }
     }
 

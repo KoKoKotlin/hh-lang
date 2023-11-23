@@ -18,6 +18,8 @@ pub enum Statement {
     If(Expr, Block, Option<Block>),
     While(Expr, Block),
     BuiltIn(Token, Vec<Expr>),
+    FuncDecl(Token, Vec<Token>, Block),
+    FuncCall(Token, Vec<Expr>),
 }
 
 #[derive(Debug, Clone)]

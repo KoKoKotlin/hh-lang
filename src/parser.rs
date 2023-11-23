@@ -35,7 +35,10 @@ const MULITPLICATIVE_OPERATORS: [TokenKind; 1] = [
  *              "if" Expr "then" Block {"else" Block} "end"
  *              "while" Expr "then" Block "end"
  *              BuiltIn { Expr {, Expr} } ";"
+ *              "func" IDENT {IDENT} "start" Block "end"
+ *              "call" IDENT {IDENT} ";"
  * Expr      => {UN_OP} Term { ADD_OP term }
+ * ExprList  => { Expr, }
  * Term      => Factor { MULT_OP Factor }
  * Factor    => IDENT | IDENT "[" Expr "]" | NUMBER | STRING | "(" Expr ")"
  * Literal   => NUMBER | STRING | BOOL
@@ -78,10 +81,12 @@ impl Parser {
                 If => self.fi()?,
                 While => self.elihw()?,
                 Print | Println => self.built_in()?,
+                Func => self.func()?,
+                Call => self.call()?,
                 End | Else => { break; }
                 _ => {
                     let head = self.get();
-                    consume_error(self, head.as_ref(), &[Let, Var, Ident, If, While]);
+                    consume_error(self, head.as_ref(), &[Let, Var, Ident, If, While, Print, Println, Func, Call, End, Else]);
                     return Err(());
                 },
             });
@@ -96,24 +101,16 @@ impl Parser {
         match self.peek() {
             Some(Print) => {
                 let print_tok = self.consume(&[Print]).ok_or(())?;
-                let mut args: Vec<Expr> = vec![];
-                
-                match self.peek() {
-                    Some(Semicolon) => {
-                        self.consume(&[Semicolon]).ok_or(())?;
-                        return Ok(Statement::BuiltIn(print_tok, args));
-                    },
-                    _ => {},
-                }
-
-                loop {
-                    args.push(self.expr()?);
-                    match self.peek() {
-                        Some(kind) if kind == Comma => self.consume(&[Comma]).ok_or(())?,
-                        _ => break,
-                    };
-                }
+                let args = self.expr_list(Some(Comma), Semicolon)?;
                 self.consume(&[Semicolon]).ok_or(())?;
+
+                return Ok(Statement::BuiltIn(print_tok, args));
+            },
+            Some(Println) => {
+                let print_tok = self.consume(&[Println]).ok_or(())?;
+                let args = self.expr_list(Some(Comma), Semicolon)?;
+                self.consume(&[Semicolon]).ok_or(())?;
+
                 return Ok(Statement::BuiltIn(print_tok, args));
             },
             _ => unreachable!(),
@@ -150,6 +147,31 @@ impl Parser {
         self.consume(&[End]).ok_or(())?;
         
         return Ok(Statement::While(condition, block));
+    }
+
+    fn func(&mut self) -> Result<Statement, ()> {
+        use TokenKind::*;
+
+        self.consume(&[Func]).ok_or(())?;
+        let func_name = self.consume(&[Ident]).ok_or(())?;
+        let args_list = self.consume_list(Ident, None, Start).ok_or(())?;
+
+        self.consume(&[Start]).ok_or(())?;
+        let code = self.block()?;
+        self.consume(&[End]).ok_or(())?;
+        
+        Ok(Statement::FuncDecl(func_name, args_list, code))
+    }
+
+    fn call(&mut self) -> Result<Statement, ()> {
+        use TokenKind::*;
+
+        self.consume(&[Call]).ok_or(())?;
+        let func_name = self.consume(&[Ident]).ok_or(())?;
+        let args_exprs = self.expr_list(None, Semicolon)?;
+        self.consume(&[Semicolon]).ok_or(())?;
+
+        Ok(Statement::FuncCall(func_name, args_exprs))
     }
 
     fn let_binding(&mut self) -> Result<Statement, ()> {
@@ -222,17 +244,7 @@ impl Parser {
             Some(Equals) => {
                 self.consume(&[Equals]).ok_or(())?;
                 self.consume(&[OpeningBracket]).ok_or(())?;
-
-                while let Some(kind) = self.peek() {
-                    if kind == ClosingBracket { break; }
-                    exprs.push(self.expr()?);
-
-                    // this allows for trailing commas in list exprs
-                    if let Some(kind) = self.peek() {
-                        if kind == Comma { self.consume(&[Comma]).ok_or(())?; }
-                    }
-                }
-
+                exprs = self.expr_list(Some(Comma), ClosingBracket)?;
                 self.consume(&[ClosingBracket]).ok_or(())?;
             },
             _ => {},
@@ -390,6 +402,37 @@ impl Parser {
         self.look_ahead = self.tokenizer.next_token();
         
         res
+    }
+
+    fn expr_list(&mut self, sep: Option<TokenKind>, end: TokenKind) -> Result<Vec<Expr>, ()> {
+        let mut exprs = vec![];
+        while let Some(kind) = self.peek() {
+            if kind == end { break; }
+            exprs.push(self.expr()?);
+
+            if let Some(sep) = sep {
+                if Some(end) == self.peek() { break; }
+                self.consume(&[sep]).ok_or(())?;
+            }
+        }
+
+        Ok(exprs)
+    }
+
+    fn consume_list(&mut self, token_kind: TokenKind, sep_kind: Option<TokenKind>, end: TokenKind) -> Option<Vec<Token>> {
+        let mut tokens = vec![];
+
+        while let Some(kind) = self.peek() {
+            if kind == end { break; }
+            tokens.push(self.consume(&[token_kind])?);
+            
+            if let Some(sep_kind) = sep_kind {
+                if Some(end) == self.peek() { break; }
+                self.consume(&[sep_kind])?;
+            }
+        }
+
+        Some(tokens)
     }
 
     fn get(&mut self) -> Option<Token> {

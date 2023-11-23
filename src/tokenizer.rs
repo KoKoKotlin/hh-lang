@@ -1,4 +1,4 @@
-use std::{fmt::{Debug, Display, write}, str::Chars};
+use std::{fmt::{Debug, Display}, str::Chars};
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,6 +46,7 @@ pub enum TokenKind {
     Let,
     Var,
     List,
+    Call,
 
     // built-in functions
     Print,
@@ -96,6 +97,7 @@ impl Display for TokenKind {
             Print => "Built-In Print",
             Println => "Built-In Pritnln",
             List => "list",
+            Call => "call",
         })
     }
 }
@@ -262,6 +264,7 @@ pub fn parse_ident(slice: &str) -> TokenKind {
         "print" => TokenKind::Print,
         "list" => TokenKind::List,
         "println" => TokenKind::Println,
+        "call" => TokenKind::Call,
         _ => TokenKind::Ident,
     }
 }
