@@ -172,6 +172,23 @@ fn exec_while(context: &mut InterpreterContext, cond_expr: &Expr, block: &Block)
     Ok(())
 }
 
+fn exec_built_in(context: &mut InterpreterContext, tok: &Token, args: &Vec<Expr>) -> InterpreterResult {
+    use TokenKind::*;
+
+    match tok.kind {
+        Print => {
+            for arg in args {
+                let arg = context.eval(arg)?;
+                print!("{} ", arg);
+            }
+            println!();
+        },
+        _ => unimplemented!("BuiltIn {:?} not implemented yet", tok.kind),
+    }
+
+    Ok(())
+}
+
 fn exec_block(context: &mut InterpreterContext, block: &Block) -> InterpreterResult {
     for statment in block.0.iter() {
         match statment {
@@ -180,6 +197,7 @@ fn exec_block(context: &mut InterpreterContext, block: &Block) -> InterpreterRes
             Statement::VarDecl(decls) => exec_var_decl(context, decls)?,
             Statement::If(cond, if_block, else_block) => exec_if(context, cond, if_block, else_block.as_ref())?,
             Statement::While(cond, block) => exec_while(context, cond, block)?,
+            Statement::BuiltIn(tok, args) => exec_built_in(context, tok, args)?,
         }
     }
 

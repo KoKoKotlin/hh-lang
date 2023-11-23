@@ -45,6 +45,9 @@ pub enum TokenKind {
     False,
     Let,
     Var,
+
+    // built-in functions
+    Print,
 }
 
 impl Display for TokenKind {
@@ -88,6 +91,7 @@ impl Display for TokenKind {
             False => "false",
             Let => "let",
             Var => "var",
+            Print => "Built-In Print"
         })
     }
 }
@@ -237,6 +241,7 @@ pub fn parse_ident(slice: &str) -> TokenKind {
         "false" => TokenKind::False,
         "let" => TokenKind::Let,
         "var" => TokenKind::Var,
+        "print" => TokenKind::Print,
         _ => TokenKind::Ident,
     }
 }

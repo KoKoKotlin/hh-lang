@@ -32,10 +32,12 @@ const MULITPLICATIVE_OPERATORS: [TokenKind; 1] = [
  * Statement => IDENT "=" Expr ";"
  *              "if" Expr "then" Block {"else" Block} "end"
  *              "while" Expr "then" Block "end"
+ *              BuiltIn { Expr {, Expr} }
  * Expr      => {UN_OP} Term { ADD_OP term } ";"
  * Term      => Factor { MULT_OP Factor } ";"
  * Factor    => IDENT | NUMBER | "(" Expr ")"
  * Literal   => NUMBER | STRING | BOOL
+ * BuiltIn   => "print"
  */
 
 impl Parser {
@@ -72,6 +74,7 @@ impl Parser {
                 Ident => self.reassign()?,
                 If => self.fi()?,
                 While => self.elihw()?,
+                Print => self.built_in()?,
                 End | Else => { break; }
                 _ => {
                     let head = self.get();
@@ -82,6 +85,36 @@ impl Parser {
         }
 
         Ok(Block(statements))
+    }
+
+    fn built_in(&mut self) -> Result<Statement, ()> {
+        use TokenKind::*;
+
+        match self.peek() {
+            Some(Print) => {
+                let print_tok = self.consume(&[Print]).ok_or(())?;
+                let mut args: Vec<Expr> = vec![];
+                
+                match self.peek() {
+                    Some(Semicolon) => {
+                        self.consume(&[Semicolon]).ok_or(())?;
+                        return Ok(Statement::BuiltIn(print_tok, args));
+                    },
+                    _ => {},
+                }
+
+                loop {
+                    args.push(self.expr()?);
+                    match self.peek() {
+                        Some(kind) if kind == Comma => self.consume(&[Comma]).ok_or(())?,
+                        _ => break,
+                    };
+                }
+                self.consume(&[Semicolon]).ok_or(())?;
+                return Ok(Statement::BuiltIn(print_tok, args));
+            },
+            _ => unreachable!(),
+        }
     }
 
     fn fi(&mut self) -> Result<Statement, ()> {
