@@ -21,6 +21,11 @@ fn load_source_code_file(path: &str) -> std::io::Result<String> {
 
 fn main() {
     let source_code = load_source_code_file(SOURCE_FILE_PATH).unwrap();
+    let mut tokenizer = tokenizer::Tokenizer::new(source_code.clone());
+    while let Some(token) = tokenizer.next_token() {
+        println!("{:?}", token);
+    }    
+
     let mut parser = Parser::new(&source_code);
     let ast_root = parser.parse();
 

@@ -14,8 +14,8 @@ pub enum TokenKind {
     Times,
     Div,
     Semicolon,
-    OpeningBraket,
-    ClosingBraket,
+    OpeningBracket,
+    ClosingBracket,
     OpeningParan,    
     ClosingParan,
     Comma,
@@ -45,6 +45,7 @@ pub enum TokenKind {
     False,
     Let,
     Var,
+    List,
 
     // built-in functions
     Print,
@@ -64,8 +65,8 @@ impl Display for TokenKind {
             Times => "*",
             Div => "/",
             Semicolon => ";",
-            OpeningBraket => "[",
-            ClosingBraket => "]",
+            OpeningBracket => "[",
+            ClosingBracket => "]",
             OpeningParan => "(",
             ClosingParan => ")",
             Comma => ",",
@@ -91,7 +92,8 @@ impl Display for TokenKind {
             False => "false",
             Let => "let",
             Var => "var",
-            Print => "Built-In Print"
+            Print => "Built-In Print",
+            List => "list",
         })
     }
 }
@@ -111,6 +113,16 @@ impl Token {
             symbols
         }
     }
+}
+
+impl Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.kind {
+            TokenKind::Ident | TokenKind::String | TokenKind::Number => write!(f, "{}({})", self.kind, self.symbols),
+            _ => write!(f, "{}", self.kind)
+        }
+    }
+
 }
 
 struct TokenizerRule {
@@ -182,8 +194,8 @@ fn parse_one_symbol_token(c: char) -> TokenKind {
         '*' => TokenKind::Times,
         '/' => TokenKind::Div,
         '=' => TokenKind::Equals,
-        '[' => TokenKind::OpeningBraket,
-        ']' => TokenKind::ClosingBraket,
+        '[' => TokenKind::OpeningBracket,
+        ']' => TokenKind::ClosingBracket,
         '(' => TokenKind::OpeningParan,
         ')' => TokenKind::ClosingParan,
         '<' => TokenKind::LessThan,
@@ -207,6 +219,7 @@ fn operator(mut char_iter: Chars) -> (usize, Option<TokenKind>) {
     let first = char_iter.next();
     let second = char_iter.next();
 
+
     let first = match first {
         None => return (0, None),
         Some(c) => {
@@ -218,8 +231,11 @@ fn operator(mut char_iter: Chars) -> (usize, Option<TokenKind>) {
     match second {
         None => return (1, Some(parse_one_symbol_token(first))),
         Some(second) => {
-            if is_operator_token(second) { return (2, parse_composite(first, second)); } 
-            else { return (1, Some(parse_one_symbol_token(first))); }
+            if let Some(composite) = parse_composite(first, second) { 
+                return (2, Some(composite)); 
+            } else {
+                return (1, Some(parse_one_symbol_token(first))); 
+            }
         }
     }
 }
@@ -242,6 +258,7 @@ pub fn parse_ident(slice: &str) -> TokenKind {
         "let" => TokenKind::Let,
         "var" => TokenKind::Var,
         "print" => TokenKind::Print,
+        "list" => TokenKind::List,
         _ => TokenKind::Ident,
     }
 }
@@ -282,7 +299,7 @@ impl Tokenizer {
 
         for rule in self.rules.iter() {
             let (len, kind) = (rule.rule)(char_iterator.clone());
-
+            
             // skip whitespace and comments
             if len != 0 && kind.is_none() {
                 self.current_loc += len;
@@ -308,5 +325,14 @@ impl Tokenizer {
         }
         
         None
+    }
+
+    pub fn get_context(&self, idx: usize) -> String {
+        let slice = &self.source_code[idx..];
+        String::from(if slice.len() > 50 {
+            &slice[0..50]
+        } else {
+            &slice[..]
+        })
     }
 }

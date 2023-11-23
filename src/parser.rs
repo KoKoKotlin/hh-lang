@@ -28,14 +28,16 @@ const MULITPLICATIVE_OPERATORS: [TokenKind; 1] = [
  * Program   => Block == Vec<Statment>
  * Block     => [ "let" IDENT "=" Literal {, IDENT "=" Literal } ";" ]
  *              [ "var" IDENT { "=" Literal } {, IDENT {"=" Literal}} ";" ]
+ *              [ "list" IDENT "[" Expr "]" ";" ]
  *              [ Statement ]
  * Statement => IDENT "=" Expr ";"
+ *              IDENT "[" Expr "]" "=" Expr ";"
  *              "if" Expr "then" Block {"else" Block} "end"
  *              "while" Expr "then" Block "end"
- *              BuiltIn { Expr {, Expr} }
- * Expr      => {UN_OP} Term { ADD_OP term } ";"
- * Term      => Factor { MULT_OP Factor } ";"
- * Factor    => IDENT | NUMBER | "(" Expr ")"
+ *              BuiltIn { Expr {, Expr} } ";"
+ * Expr      => {UN_OP} Term { ADD_OP term }
+ * Term      => Factor { MULT_OP Factor }
+ * Factor    => IDENT | IDENT "[" Expr "]" | NUMBER | STRING | "(" Expr ")"
  * Literal   => NUMBER | STRING | BOOL
  * BuiltIn   => "print"
  */
@@ -71,6 +73,7 @@ impl Parser {
             statements.push(match head {
                 Let => self.let_binding()?,
                 Var => self.var_decl()?,
+                List => self.list_decl()?,
                 Ident => self.reassign()?,
                 If => self.fi()?,
                 While => self.elihw()?,
@@ -78,7 +81,7 @@ impl Parser {
                 End | Else => { break; }
                 _ => {
                     let head = self.get();
-                    consume_error(head.as_ref(), &[Let, Var, Ident, If, While]);
+                    consume_error(self, head.as_ref(), &[Let, Var, Ident, If, While]);
                     return Err(());
                 },
             });
@@ -188,7 +191,7 @@ impl Parser {
                     None
                 },
                 None => {
-                    consume_error(None, &[Equals, Semicolon]);
+                    consume_error(self, None, &[Equals, Semicolon]);
                     return Err(());
                 },
             };
@@ -205,15 +208,49 @@ impl Parser {
         return Ok(Statement::VarDecl(var_decls));
     }
 
+    fn list_decl(&mut self) -> Result<Statement, ()> {
+        use TokenKind::*;
+        
+        self.consume(&[List]).ok_or(())?;
+        let ident = self.consume(&[Ident]).ok_or(())?;
+        self.consume(&[OpeningBracket]).ok_or(())?;
+        let expr = self.expr()?;
+        self.consume(&[ClosingBracket]).ok_or(())?;
+        self.consume(&[Semicolon]).ok_or(())?;
+
+        return Ok(Statement::ListDecl(ident, expr));
+    }
+
     fn reassign(&mut self) -> Result<Statement, ()> {
         use TokenKind::*;
         let ident = self.consume(&[Ident]).ok_or(())?;
-        
-        self.consume(&[Equals]).ok_or(())?;
-        let expr = self.expr()?;
-        self.consume(&[Semicolon]).ok_or(())?;
+        println!("{:?}", ident);
 
-        Ok(Statement::Reassign(ident, expr))
+        match self.peek() {
+            Some(OpeningBracket) => {
+                self.consume(&[OpeningBracket]).ok_or(())?;
+                let index = self.expr()?;
+                self.consume(&[ClosingBracket]).ok_or(())?;
+                self.consume(&[Equals]).ok_or(())?;
+                let expr = self.expr()?;
+                self.consume(&[Semicolon]).ok_or(())?;
+
+                return Ok(Statement::ListReassign(ident, index, expr));
+            },
+            Some(Equals) => {
+                self.consume(&[Equals]).ok_or(())?;
+                let expr = self.expr()?;
+                self.consume(&[Semicolon]).ok_or(())?;
+        
+                Ok(Statement::Reassign(ident, expr))
+            },
+            _ => {
+                let tok = self.get();
+                consume_error(self, tok.as_ref(), &[Equals, OpeningBracket]);
+                Err(())
+            },
+        }
+
     }
 
     fn expr(&mut self) -> Result<Expr, ()> {
@@ -267,11 +304,23 @@ impl Parser {
             },
             Some(Ident) => {
                 let ident = self.consume(&[Ident]).ok_or(())?;
+
+                match self.peek() {
+                    Some(OpeningBracket) => {
+                        self.consume(&[OpeningBracket]).ok_or(())?;
+                        let index = self.expr()?;
+                        self.consume(&[ClosingBracket]).ok_or(())?;
+                        
+                        return Ok(Expr::IdentIndexed(ident, Box::new(index)));
+                    },
+                    _ => {}
+                }
+                
                 return Ok(Expr::Ident(ident));
             },
             _ => {
                 let next = self.get();
-                consume_error(next.as_ref(), &[Number, String, Ident, OpeningParan]);
+                consume_error(self, next.as_ref(), &[Number, String, Ident, OpeningParan]);
                 return Err(());
             },
         }
@@ -308,12 +357,12 @@ impl Parser {
                 if token_kinds.contains(&token.kind) {
                     Some(token.clone())
                 } else {
-                    consume_error(Some(token), &token_kinds);
+                    consume_error(self, Some(token), &token_kinds);
                     None
                 }
             },
             None => {
-                consume_error(None, &token_kinds);
+                consume_error(self, None, &token_kinds);
                 None
             },
         };
@@ -327,9 +376,7 @@ impl Parser {
     }
 }
 
-
-
-fn consume_error(token: Option<&Token>, token_kinds: &[TokenKind]) {
+fn consume_error(parser: &Parser, token: Option<&Token>, token_kinds: &[TokenKind]) {
     let token_desc = if token_kinds.len() == 1 {
         format!("{}", token_kinds[0])
     } else {
@@ -346,7 +393,7 @@ fn consume_error(token: Option<&Token>, token_kinds: &[TokenKind]) {
     };
 
     match token {
-        Some(t) => eprintln!("Expected {} but got {} at {}", token_desc, t.kind, t.loc),
+        Some(t) => eprintln!("Expected {} but got {} at {}.\nContext:\n{}", token_desc, t, t.loc, parser.tokenizer.get_context(t.loc)),
         None => eprintln!("Expected {} but no tokens are left!", token_desc),
     }
 }

@@ -1,63 +1,138 @@
+use std::env::var;
+
 use crate::{ast::{Program, Literal, Block, Statement, Expr}, tokenizer::{Token, TokenKind}};
 
 #[derive(Debug)]
-struct Variable {
-    name: String,
-    value: Option<Literal>,
-    constant: bool,
+enum Name {
+    Const { name: String, value: Literal },
+    Var { name: String, value: Option<Literal> },
+    List { name: String, value: Vec<Literal> },
 }
 
-impl Variable {
+impl Name {
+    fn is_var(&self) -> bool {
+        match self {
+            Self::Const { name: _, value: _ } => false,
+            Self::Var { name: _, value: _ } => true,
+            Self::List { name: _, value: _ } => false,
+        }
+    }
+
+    fn is_const(&self) -> bool {
+        match self {
+            Self::Const { name: _, value: _ } => true,
+            Self::Var { name: _, value: _ } => false,
+            Self::List { name: _, value: _ } => false,
+        }
+    }
+
+    fn is_list(&self) -> bool {
+        match self {
+            Self::Const { name: _, value: _ } => false,
+            Self::Var { name: _, value: _ } => false,
+            Self::List { name: _, value: _ } => true,
+        }
+    }
+
+    fn reassign_var(&mut self, value: &Literal) -> InterpreterResult {
+        match self {
+            Self::Const { name: _, value: _ } => Err(InterpreterError::ConstantReassign),
+            Self::Var { name: _, value: ref mut v } => {
+                *v = Some(value.clone());
+                Ok(())
+            },
+            Self::List { name: _, value: _ } => Err(InterpreterError::ListReassign),
+        }
+    }
+
     fn make_const(name: &str, value: Literal) -> Self {
-        Self { name: name.to_string(), value: Some(value), constant: true }
+        Self::Const { name: name.to_string(), value }
     }
 
     fn make_var(name: &str, value: Option<Literal>) -> Self {
-        Self { name: name.to_string(), value, constant: false }
+        Self::Var { name: name.to_string(), value }
+    }
+
+    fn make_list(name: &str, capacity: usize) -> Self {
+        let mut value = Vec::new();
+        for _ in 0..capacity {
+            value.push(Literal::Number(0));
+        }
+
+        Self::List { name: name.to_string(), value }
     }
 }
 
 #[derive(Debug)]
 pub struct InterpreterContext {
-    variables: Vec<Variable>,
+    names: Vec<Name>,
 }
 
 #[derive(Debug)]
 pub enum InterpreterError {
     VariableDoesNotExists,
     ConstantReassign,
+    ListReassign,
     VariableNotInitialized,
     UndefinedBinOperation(Literal, Token, Literal),
     DivisionByZero,
+    TypeError(String),
+    ValueError(String),
+    IndexOutOfBounds,
 }
 
 pub type InterpreterResult = Result<(), InterpreterError>;
 
 impl InterpreterContext {
     pub fn new() -> Self {
-        Self { variables: vec![] }
+        Self { names: vec![] }
     }
 
-    fn get_var(&mut self, name: &str) -> Option<&mut Variable> {
-        for var in self.variables.iter_mut() {
-            if var.name == name { return Some(var); }
+    fn get_name(&mut self, name: &str) -> Option<&mut Name> {
+        for var in self.names.iter_mut() {
+            let found = match var {
+                Name::Const { name: n, value: _ } => n == name,
+                Name::Var { name: n, value: _ } => n == name,
+                Name::List { name: n, value: _ } => n == name,
+            };
+            if found { return Some(var); }
         }
 
         None
     }
 
-    fn var_exists(&self, name: &str) -> bool {
-        self.variables.iter().any(|var| var.name == name)
+    fn name_exists(&self, name: &str) -> bool {
+        self.names.iter().any(|var| match var {
+            Name::Const { name: n, value: _ } => n == name,
+            Name::Var { name: n, value: _ } => n == name,
+            Name::List { name: n, value: _ } => n == name,
+        })
     }
 
-    fn get_var_value(&self, name: &str) -> Result<Literal, InterpreterError> {
-        for var in self.variables.iter() {
-            if var.name == name { 
-                let lit = var.value.clone();
-                if let Some(lit) = lit {
-                    return Ok(lit);
-                } else {
-                    return Err(InterpreterError::VariableNotInitialized);
+    fn get_var_value(&self, name: &str, idx: Option<&Expr>) -> Result<Literal, InterpreterError> {
+        for var in self.names.iter() {
+            let maybe_name = match var {
+                Name::Const { name: n, value: _ } => if n == name { Some(var) } else { None },
+                Name::Var { name: n, value: _ } => if n == name { Some(var) } else { None },
+                Name::List { name: n, value: _ } => if n == name { Some(var) } else { None },
+            };
+            
+            if let Some(name) = maybe_name {
+                match name {
+                    Name::Const { name: _, value: v } => return Ok(v.clone()),
+                    Name::Var { name: _, value: v } => {
+                        if let Some(v) = v { return Ok(v.clone()) } else { return Err(InterpreterError::VariableNotInitialized) }  
+                    },
+                    Name::List { name: _, value: v } => {
+                        if let Some(idx) = idx {
+                            let idx = self.eval(idx)?;
+                            if let Literal::Number(idx) = idx {
+                                return Ok(v[idx as usize].clone());
+                            } else {
+                                return Err(InterpreterError::TypeError(format!("Indices must be Number, got {:?}", idx)));
+                            }
+                        }
+                    },
                 }
             }
         }
@@ -74,8 +149,9 @@ impl InterpreterContext {
             },
             Expr::Literal(lit) => Ok(lit.clone()),
             Expr::Ident(tok) => {
-                self.get_var_value(&tok.symbols)
+                self.get_var_value(&tok.symbols, None)
             },
+            Expr::IdentIndexed(tok, idx_expr) => self.get_var_value(&tok.symbols, Some(idx_expr)),
         }
     }
 }
@@ -115,26 +191,56 @@ fn apply_op(left: &Literal, op: &Token, right: &Literal) -> Result<Literal, Inte
 }
 
 fn exec_reassign(context: &mut InterpreterContext, tok: &Token, expr: &Expr) -> InterpreterResult {
-    if !context.var_exists(&tok.symbols) {
+    if !context.name_exists(&tok.symbols) {
         return Err(InterpreterError::VariableDoesNotExists);
     }
 
     let result = context.eval(expr);
-    let var = context.get_var(&tok.symbols).unwrap();
+    let name = context.get_name(&tok.symbols).unwrap();
 
-    if var.constant {
+    if name.is_const() {
         return Err(InterpreterError::ConstantReassign);
+    } else if name.is_list() {
+        return Err(InterpreterError::ListReassign);
     }
 
-    var.value = Some(result?);
+    name.reassign_var(&result?)?;
+
+    Ok(())
+}
+
+fn exec_list_reassign(context: &mut InterpreterContext, tok: &Token, idx_expr: &Expr, val_expr: &Expr) -> InterpreterResult {
+    if !context.name_exists(&tok.symbols) {
+        return Err(InterpreterError::VariableDoesNotExists);
+    }
+
+    let result = context.eval(val_expr)?;
+    let idx = context.eval(idx_expr)?;
+
+    if let Literal::Number(idx) = idx {
+        let name = context.get_name(&tok.symbols).unwrap();
+        if name.is_const() || name.is_var() {
+            return Err(InterpreterError::ValueError("Can't index into a non-list".to_string()));
+        }
+
+        if let Name::List { name: _, value: v } = name {
+            println!("{idx}");
+            if idx < 0 || v.len() <= idx as usize {
+                return Err(InterpreterError::IndexOutOfBounds);
+            }
+            v[idx as usize] = result;
+        }
+    } else {
+        return Err(InterpreterError::TypeError(format!("Indices must be Number, got {:?}", idx)));
+    }
 
     Ok(())
 }
 
 fn exec_const_assign(context: &mut InterpreterContext, assigns: &Vec<(Token, Literal)>) -> InterpreterResult {
     for (tok, lit) in assigns {
-        let var = Variable::make_const(&tok.symbols, lit.clone());
-        context.variables.push(var);
+        let var = Name::make_const(&tok.symbols, lit.clone());
+        context.names.push(var);
     }
 
     Ok(())
@@ -142,10 +248,30 @@ fn exec_const_assign(context: &mut InterpreterContext, assigns: &Vec<(Token, Lit
 
 fn exec_var_decl(context: &mut InterpreterContext, decls: &Vec<(Token, Option<Literal>)>) -> InterpreterResult {
     for (tok, lit) in decls {
-        let var = Variable::make_var(&tok.symbols, lit.clone());
-        context.variables.push(var);
+        let var = Name::make_var(&tok.symbols, lit.clone());
+        context.names.push(var);
     }
 
+    Ok(())
+}
+
+fn exec_list_decl(context: &mut InterpreterContext, tok: &Token, expr: &Expr) -> InterpreterResult {
+    let capacity = match context.eval(expr)? {
+        Literal::String(_) => return Err(InterpreterError::TypeError("String cannot be used as a list".to_string())),
+        Literal::Number(num) => {
+            if num < 0 {
+                return Err(InterpreterError::ValueError("Number cannot be negative".to_string()));
+            }
+
+            num as usize
+        },
+        Literal::True => return Err(InterpreterError::TypeError("Bool cannot be used as a list".to_string())),
+        Literal::False => return Err(InterpreterError::TypeError("Bool cannot be used as a list".to_string())),
+        Literal::Unit => return Err(InterpreterError::TypeError("Unit cannot be used as a list".to_string())),
+    };
+
+    let list = Name::make_list(&tok.symbols, capacity);
+    context.names.push(list);
     Ok(())
 }
 
@@ -193,8 +319,10 @@ fn exec_block(context: &mut InterpreterContext, block: &Block) -> InterpreterRes
     for statment in block.0.iter() {
         match statment {
             Statement::Reassign(tok, expr) => exec_reassign(context, tok, expr)?,
+            Statement::ListReassign(tok, idx_expr, val_expr) => exec_list_reassign(context, tok, idx_expr, val_expr)?,
             Statement::ConstAssign(assigns) => exec_const_assign(context, assigns)?,
             Statement::VarDecl(decls) => exec_var_decl(context, decls)?,
+            Statement::ListDecl(tok, expr) => exec_list_decl(context, tok, expr)?,
             Statement::If(cond, if_block, else_block) => exec_if(context, cond, if_block, else_block.as_ref())?,
             Statement::While(cond, block) => exec_while(context, cond, block)?,
             Statement::BuiltIn(tok, args) => exec_built_in(context, tok, args)?,

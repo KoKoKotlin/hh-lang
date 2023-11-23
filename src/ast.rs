@@ -11,8 +11,10 @@ pub struct Block(pub Vec<Statement>);
 #[derive(Debug, Clone)]
 pub enum Statement {
     Reassign(Token, Expr),
+    ListReassign(Token, Expr, Expr),
     ConstAssign(Vec<(Token, Literal)>),
     VarDecl(Vec<(Token, Option<Literal>)>),
+    ListDecl(Token, Expr),
     If(Expr, Block, Option<Block>),
     While(Expr, Block),
     BuiltIn(Token, Vec<Expr>),
@@ -24,6 +26,7 @@ pub enum Expr {
     // Unary(Unary),
     Literal(Literal),
     Ident(Token),
+    IdentIndexed(Token, Box<Expr>),
 }
 
 #[derive(Clone, Debug)]
