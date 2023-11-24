@@ -51,7 +51,7 @@ const BUILT_INS: [TokenKind; 3] = [
  * FuncCall    => "call" IDENT {IDENT}
  * BuiltInCall => BuiltIn { Expr {, Expr} }
  * Term        => Factor { MULT_OP Factor }
- * Factor      => IDENT | IDENT "[" Expr "]" | NUMBER | STRING | "(" Expr ")"
+ * Factor      => IDENT { "." IDENT } | IDENT "[" Expr "]" | NUMBER | STRING | "(" Expr ")"
  * Literal     => NUMBER | STRING | BOOL | RecordInstance | ListLiteral
  * BuiltIn     => "print" | "println"
  */
@@ -373,6 +373,15 @@ impl Parser {
                         
                         return Ok(Expr::IdentIndexed(ident, Box::new(index)));
                     },
+                    Some(Dot) => {
+                        let mut idents = vec![];                        
+                        while Some(Dot) == self.peek() {
+                            self.consume(&[Dot]).ok_or(())?;
+                            idents.push(self.consume(&[Ident]).ok_or(())?);
+                        }
+
+                        return Ok(Expr::RecordFieldDeref(ident, idents));
+                    }
                     _ => {}
                 }
                 

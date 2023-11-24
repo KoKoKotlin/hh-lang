@@ -32,6 +32,7 @@ pub enum Expr {
     BuiltInCall(Token, Vec<Expr>),
     ListInstantiation(Token, Box<Expr>, Vec<Expr>),
     RecordInstantiation(Token, Vec<Expr>),
+    RecordFieldDeref(Token, Vec<Token>),
 }
 
 #[derive(Clone, Debug)]
@@ -91,6 +92,18 @@ impl Literal {
                 buf
             },
             _ => format!("{:?}", self),
+        }
+    }
+
+    pub fn get_type(&self) -> &'static str {
+        match self {
+            Literal::String(_) => "String",
+            Literal::Number(_) => "Number",
+            Literal::True => "Bool",
+            Literal::False => "Bool",
+            Literal::List(_) => "List",
+            Literal::RecordInstance(_, _) => "RecordInstance",
+            Literal::Unit => "Unit",
         }
     }
 }

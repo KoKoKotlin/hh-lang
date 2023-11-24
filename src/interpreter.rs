@@ -78,26 +78,33 @@ impl Name {
 
 #[derive(Debug, Clone)]
 struct Func {
-    pub name: String,
+    pub name: Token,
     pub args: Vec<Token>,
     pub code: Block,
 }
 
 impl Func {
-    fn new(name: &str, args: &Vec<Token>, code: &Block) -> Self {
-        Self { name: name.to_owned(), args: args.clone(), code: code.clone() }
+    fn new(name: &Token, args: &Vec<Token>, code: &Block) -> Self {
+        Self { name: name.clone(), args: args.clone(), code: code.clone() }
     }
 }
 
 #[derive(Debug, Clone)]
 struct Record {
-    pub name: String,
+    pub name: Token,
     pub fields: Vec<Token>,
 }
 
 impl Record {
-    pub fn new(name: &str, fields: &Vec<Token>) -> Self {
-        Self { name: name.to_owned(), fields: fields.clone() }
+    pub fn new(name: &Token, fields: &Vec<Token>) -> Self {
+        Self { name: name.clone(), fields: fields.clone() }
+    }
+
+    fn find_field(&self, field_tok: &Token) -> Option<usize> {
+        self.fields.iter()
+            .enumerate()
+            .find(|(_, f_tok)| f_tok.symbols == field_tok.symbols)
+            .map(|opt| opt.0)
     }
 }
 
@@ -123,6 +130,7 @@ pub enum InterpreterError {
     CallArgumentCount(Token),
     RecordNotDeclared(Token),
     RecordFieldCount(Token),
+    RecordFieldDoesNotExist(Token, Token),
 }
 
 pub type InterpreterResult = Result<(), InterpreterError>;
@@ -264,12 +272,13 @@ impl InterpreterContext {
             Expr::FuncCall(func_name, args_exprs) => exec_func_call(self, func_name, args_exprs),
             Expr::ListInstantiation(tok, capacity, init_exprs) => exec_list_instantiation(self, tok, capacity, init_exprs),
             Expr::RecordInstantiation(record_name, field_exprs) => exec_record_instantiation(self, record_name, field_exprs),
+            Expr::RecordFieldDeref(record_tok, field_toks) => exec_record_field_deref(self, record_tok, field_toks),
         }
     }
 
     fn get_func(&self, func_name: &Token) -> Option<Func> {
         for func in self.func_decls.iter() {
-            if func.name == func_name.symbols { return Some(func.clone()); }
+            if func.name.symbols == func_name.symbols { return Some(func.clone()); }
         }
         None
     }
@@ -298,7 +307,7 @@ impl InterpreterContext {
 
     fn get_record(&self, record_name: &Token) -> Option<Record> {
         for record in self.record_decls.iter() {
-            if record.name == record_name.symbols { return Some(record.clone()); }
+            if record.name.symbols == record_name.symbols { return Some(record.clone()); }
         }
         None
     }
@@ -315,6 +324,28 @@ impl InterpreterContext {
             return Ok(Literal::RecordInstance(record_name.clone(), field_lits?));
         } else {
             return Err(InterpreterError::RecordNotDeclared(record_name.clone()));
+        }
+    }
+
+    fn record_field_defef(&mut self, record_tok: &Token, record_lit: &Literal, field_toks: &Vec<Token>, current_tok_idx: usize) -> Result<Literal, InterpreterError> {
+        if current_tok_idx >= field_toks.len() { return Ok(record_lit.clone()); }
+
+        let (record_name, field_lits) = match record_lit {
+            Literal::RecordInstance(record_name, field_lits) => (record_name, field_lits),
+            lit => return Err(
+                InterpreterError::TypeError(record_tok.clone(), 
+                format!("Literal of type {} cannot be derefed!", lit.get_type()))),
+        };
+
+        let record = self.get_record(&record_name)
+            .ok_or(InterpreterError::RecordNotDeclared(record_tok.clone()))?;
+
+        let field_tok = &field_toks[current_tok_idx];
+        if let Some(idx) = record.find_field(field_tok) {
+            let lit = &field_lits[idx];
+            return self.record_field_defef(record_tok, lit, field_toks, current_tok_idx + 1);
+        } else {
+            return Err(InterpreterError::RecordFieldDoesNotExist(record.name.clone(), field_tok.clone()));
         }
     }
 }
@@ -486,12 +517,12 @@ fn exec_built_in(context: &mut InterpreterContext, tok: &Token, args: &Vec<Expr>
 }
 
 fn exec_func_decl(context: &mut InterpreterContext, func_name: &Token, args: &Vec<Token>, code: &Block) -> InterpreterResult {
-    context.func_decls.push(Func::new(&func_name.symbols, args, code));
+    context.func_decls.push(Func::new(func_name, args, code));
     Ok(())
 }
 
 fn exec_record_decl(context: &mut InterpreterContext, record_name: &Token, fields: &Vec<Token>) -> InterpreterResult {
-    context.record_decls.push(Record::new(&record_name.symbols, fields));
+    context.record_decls.push(Record::new(record_name, fields));
     Ok(())
 }
 
@@ -506,6 +537,11 @@ fn exec_expr(context: &mut InterpreterContext, expr: &Expr) -> InterpreterResult
 
 fn exec_record_instantiation(context: &mut InterpreterContext, record_name: &Token, field_values: &Vec<Expr>) -> Result<Literal, InterpreterError> {
     context.instance_record(record_name, field_values)
+}
+
+fn exec_record_field_deref(context: &mut InterpreterContext, record_tok: &Token, field_toks: &Vec<Token>) -> Result<Literal, InterpreterError> {
+    let value = context.get_var_value(record_tok)?;
+    context.record_field_defef(record_tok,&value, field_toks, 0)
 }
 
 fn exec_block(context: &mut InterpreterContext, block: &Block) -> InterpreterResult {

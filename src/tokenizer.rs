@@ -22,6 +22,7 @@ pub enum TokenKind {
     LessThan,
     GreaterThan,
     Bang,
+    Dot,
 
     // composite tokens
     LessOrEqual,
@@ -77,6 +78,7 @@ impl Display for TokenKind {
             LessThan => "<",
             GreaterThan => ">",
             Bang => "!",
+            Dot => ".",
             LessOrEqual => "<=",
             GreaterOrEqual => ">=",
             NotEqual => "!=",
@@ -206,7 +208,7 @@ fn string(char_iter: Chars) -> (usize, Option<TokenKind>) {
 fn is_operator_token(c: char) -> bool {
     c == ',' || c == '+' || c == '-' || c == '*' || c == '/' || c == '=' 
  || c == '[' || c == ']' || c == ';' || c == '<' || c == '>' || c == '!'
- || c == '(' || c == ')'
+ || c == '(' || c == ')' || c == '.'
 }
 
 fn parse_one_symbol_token(c: char) -> TokenKind {
@@ -225,6 +227,7 @@ fn parse_one_symbol_token(c: char) -> TokenKind {
         '<' => TokenKind::LessThan,
         '>' => TokenKind::GreaterThan,
         '!' => TokenKind::Bang,
+        '.' => TokenKind::Dot,
         _ => unreachable!(),
     }
 }
