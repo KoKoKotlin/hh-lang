@@ -30,32 +30,6 @@ const BUILT_INS: [TokenKind; 3] = [
     TokenKind::Dbg,
 ];
 
-/** Current Grammar:
- * Program     => BlockList == Vec<Statement>
- * Block       => [ "let" IDENT "=" Literal {, IDENT "=" Literal } ";" ] |
- *                [ "var" IDENT { "=" Literal } {, IDENT {"=" Literal}} ";" ] |
- *                [ Statement ]
- * Statement   => IDENT { "." IDENT } "=" Expr ";" |
- *                IDENT "[" Expr "]" "=" Expr ";" |
- *                "if" Expr "then" Block {"else" Block} "end" |
- *                "while" Expr "do" Block "end" |
- *                "func" IDENT {IDENT} "start" Block "end" |
- *                "record" "start" IDENT "end" |
- *                Expr ";"
- * Expr        => {UN_OP} Term { ADD_OP term } |
- *                FuncCall |
- *                BuiltInCall |
- *                "[" Expr "]" {"(" {Expr, } ")"}
- *                "new" IDENT "(" { Expr, } ")" |
- * ExprList    => { Expr, }
- * FuncCall    => "call" IDENT {IDENT}
- * BuiltInCall => BuiltIn { Expr {, Expr} }
- * Term        => Factor { MULT_OP Factor }
- * Factor      => IDENT { "." IDENT } | IDENT "[" Expr "]" | NUMBER | STRING | "(" Expr ")"
- * Literal     => NUMBER | STRING | BOOL | RecordInstance | ListLiteral
- * BuiltIn     => "print" | "println"
- */
-
 impl Parser {
     pub fn new(source_code: &str) -> Self {
         let mut tokenizer = Tokenizer::new(source_code.to_owned());
