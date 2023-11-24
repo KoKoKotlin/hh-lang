@@ -294,12 +294,16 @@ pub fn parse_ident(slice: &str) -> TokenKind {
     }
 }
 
+fn is_ident_char(c: char) -> bool {
+    c.is_alphanumeric() || c == '_' 
+}
+
 fn ident(char_iter: Chars) -> (usize, Option<TokenKind>) {
     let mut buf = String::new();
 
     for (idx, char) in char_iter.enumerate() {
         if idx == 0 && !char.is_alphabetic() { return (0, None); }
-        else if !char.is_alphanumeric() { 
+        else if !is_ident_char(char) { 
             break;
         }
         buf.push(char);
