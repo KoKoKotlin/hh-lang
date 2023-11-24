@@ -9,7 +9,7 @@ mod parser;
 mod ast;
 mod interpreter;
 
-const SOURCE_FILE_PATH: &'static str = "main.hh";
+const SOURCE_FILE_PATH: &'static str = "main.hhl";
 
 fn load_source_code_file(path: &str) -> std::io::Result<String> {
     let mut file = File::open(path)?;

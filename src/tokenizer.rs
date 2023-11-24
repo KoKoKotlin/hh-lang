@@ -110,7 +110,7 @@ impl Display for TokenKind {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Location {
     row: usize,
     col: usize,
@@ -123,7 +123,7 @@ impl Display for Location {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     pub loc: Location,
     pub index: usize,

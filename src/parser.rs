@@ -9,10 +9,24 @@ enum ParserError {
     WrongTokenkind
 }
 
-const UNARY_OPERATORS: [TokenKind; 3] = [
-    TokenKind::Plus,
+const UNARY_OPERATORS: [TokenKind; 2] = [
     TokenKind::Minus,
     TokenKind::Bang,
+];
+
+const COMPARISON_OPERATORS: [TokenKind; 6] = [
+    TokenKind::LessThan,
+    TokenKind::GreaterThan,
+    TokenKind::LessOrEqual,
+    TokenKind::GreaterOrEqual,
+    TokenKind::EqualsEquals,
+    TokenKind::NotEqual,
+];
+
+const LOGICAL_OPERATOR: [TokenKind; 3] = [
+    TokenKind::And,
+    TokenKind::Or,
+    TokenKind::Xor,
 ];
 
 const ADDITIVE_OPERATORS: [TokenKind; 2] = [
@@ -20,8 +34,9 @@ const ADDITIVE_OPERATORS: [TokenKind; 2] = [
     TokenKind::Minus,
 ];
 
-const MULITPLICATIVE_OPERATORS: [TokenKind; 1] = [
+const MULITPLICATIVE_OPERATORS: [TokenKind; 2] = [
     TokenKind::Times,
+    TokenKind::Div,
 ];
 
 const BUILT_INS: [TokenKind; 3] = [
@@ -285,31 +300,6 @@ impl Parser {
 
     }
 
-    fn expr(&mut self) -> Result<Expr, ()> {
-        use TokenKind::*;
-        
-        match self.peek() {
-            Some(Call) => return self.call(),
-            Some(New) => return self.new_record(),
-            Some(OpeningBracket) => return self.list(),
-            Some(kind) if BUILT_INS.contains(&kind) => return self.built_in(),
-            _ => {
-                let left = self.term()?;
-                match self.peek() {
-                    Some(Plus) | Some(Minus) => {
-                        let operator = self.consume(&ADDITIVE_OPERATORS).ok_or(())?;
-                        let right = self.expr()?;
-        
-                        return Ok(Expr::Binary(Box::new(left), operator, Box::new(right)));
-                    },
-                    _ => {
-                        return Ok(left);
-                    }
-                }
-            }
-        }
-    }
-
     fn list(&mut self) -> Result<Expr, ()> {
         use TokenKind::*;
         let start_token = self.consume(&[OpeningBracket]).ok_or(())?;
@@ -329,14 +319,72 @@ impl Parser {
         Ok(Expr::ListInstantiation(start_token, Box::new(capacity_expr), init_exprs))
     }
 
-    fn term(&mut self) -> Result<Expr, ()> {
+    fn expr(&mut self) -> Result<Expr, ()> {
         use TokenKind::*;
+        
+        match self.peek() {
+            Some(Call) => return self.call(),
+            Some(New) => return self.new_record(),
+            Some(OpeningBracket) => return self.list(),
+            Some(kind) if BUILT_INS.contains(&kind) => return self.built_in(),
+            _ => self.logic_expr(),
+        }
+    }
 
+    fn logic_expr(&mut self) -> Result<Expr, ()> {
+        let left = self.comp_expr()?;
+
+        match self.peek() {
+            Some(kind) if LOGICAL_OPERATOR.contains(&kind) => {
+                let operand = self.consume(&LOGICAL_OPERATOR).ok_or(())?;
+                let right = self.comp_expr()?;
+                
+                return Ok(Expr::Binary(Box::new(left), operand, Box::new(right)));
+            }
+            _ => {
+                return Ok(left);
+            },
+        }
+    }
+
+    fn comp_expr(&mut self) -> Result<Expr, ()> {
+        let left = self.add_expr()?;
+
+        match self.peek() {
+            Some(kind) if COMPARISON_OPERATORS.contains(&kind) => {
+                let operand = self.consume(&COMPARISON_OPERATORS).ok_or(())?;
+                let right = self.add_expr()?;
+                
+                return Ok(Expr::Binary(Box::new(left), operand, Box::new(right)));
+            }
+            _ => {
+                return Ok(left);
+            },
+        }
+    }
+
+    fn add_expr(&mut self) -> Result<Expr, ()> {
+        let left = self.mult_expr()?;
+
+        match self.peek() {
+            Some(kind) if ADDITIVE_OPERATORS.contains(&kind) => {
+                let operand = self.consume(&ADDITIVE_OPERATORS).ok_or(())?;
+                let right = self.mult_expr()?;
+                
+                return Ok(Expr::Binary(Box::new(left), operand, Box::new(right)));
+            }
+            _ => {
+                return Ok(left);
+            },
+        }
+    }
+
+    fn mult_expr(&mut self) -> Result<Expr, ()> {
         let left = self.factor()?;
 
         match self.peek() {
-            Some(Times) | Some(Div) => {
-                let operand = self.consume(&[Times, Div]).ok_or(())?;
+            Some(kind) if MULITPLICATIVE_OPERATORS.contains(&kind) => {
+                let operand = self.consume(&MULITPLICATIVE_OPERATORS).ok_or(())?;
                 let right = self.factor()?;
                 
                 return Ok(Expr::Binary(Box::new(left), operand, Box::new(right)));
@@ -385,6 +433,11 @@ impl Parser {
                 }
                 
                 return Ok(Expr::Ident(ident));
+            },
+            Some(kind) if UNARY_OPERATORS.contains(&kind) => {
+                let op = self.consume(&UNARY_OPERATORS).ok_or(())?;
+                let factor = self.factor()?;
+                return Ok(Expr::Unary(op, Box::new(factor)));
             },
             _ => {
                 let next = self.get();

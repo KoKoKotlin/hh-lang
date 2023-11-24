@@ -18,7 +18,7 @@ Statement   => IDENT { "." IDENT } "=" Expr ";" |
             "record" "start" IDENT "end" |
             "return" Expr ";" |
             Expr ";"
-Expr        => {UN_OP} Term { ADD_OP term } |
+Expr        => LogicExpr |
             FuncCall |
             BuiltInCall |
             "[" Expr "]" {"(" {Expr, } ")"} |
@@ -26,8 +26,11 @@ Expr        => {UN_OP} Term { ADD_OP term } |
 ExprList    => { Expr, }
 FuncCall    => "call" IDENT {IDENT}
 BuiltInCall => BuiltIn { Expr {, Expr} }
-Term        => Factor { MULT_OP Factor }
-Factor      => IDENT { "." IDENT } | IDENT "[" Expr "]" | NUMBER | STRING | "(" Expr ")"
+LogicExpr   => CompExpr { LOGIC_OP CompExpr }
+CompExpr    => AddExpr { LOGIC_OP AddExpr }
+AddExpr     => MultExpr { ADD_OP MultExpr }
+MultExpr    => Factor { MULT_OP Factor }
+Factor      => [ UNARY_OP ] IDENT { "." IDENT } | IDENT "[" Expr "]" | NUMBER | STRING | "(" Expr ")"
 Literal     => NUMBER | STRING | BOOL | RecordInstance | ListLiteral
 BuiltIn     => "print" | "println" | "dbg"
 ```
@@ -38,8 +41,6 @@ BuiltIn     => "print" | "println" | "dbg"
 
 ### TODO:
   - floats
-  - logic, unary, comparision operations
-  - function, builtin returns
 
 ### BUGS:
   - when passing list literals behind idents in func argument list, then the parser thinks the len expr of the list is an indexing of the ident 

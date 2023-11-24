@@ -127,6 +127,7 @@ pub enum InterpreterError {
     VariableDoesNotExists(Token),
     ConstantReassign(Token),
     VariableNotInitialized(Token),
+    UndefinedUnaryOperation(Token, Literal),
     UndefinedBinOperation(Literal, Token, Literal),
     DivisionByZero(Token),
     TypeError(Token, String),
@@ -271,6 +272,10 @@ impl InterpreterContext {
                 let right = self.eval(&right)?;
                 apply_op(left, op, right).map(|lit| mut_rc(lit))
             },
+            Expr::Unary(op, operand) => {
+                let operand = self.eval(&operand)?;
+                apply_unary(op, operand).map(|lit| mut_rc(lit))
+            }
             Expr::Literal(lit) => Ok(lit.clone()),
             Expr::Ident(tok) => {
                 self.get_var_value(tok)
@@ -357,6 +362,26 @@ impl InterpreterContext {
     }
 }
 
+fn apply_unary(op: &Token, operand: MutRc<Literal>) -> Result<Literal, InterpreterError> {
+    use TokenKind::*;
+
+    // TODO for better performance don't clone
+    let operand = operand.borrow().clone();
+
+    return match op.kind {
+        Minus => match &operand {
+            Literal::Number(n) => Ok(Literal::Number(-n)),
+            _ => Err(InterpreterError::UndefinedUnaryOperation(op.clone(), operand.clone())),
+        },
+        Bang => match &operand {
+            Literal::True => Ok(Literal::False),
+            Literal::False => Ok(Literal::True),
+            _ => Err(InterpreterError::UndefinedUnaryOperation(op.clone(), operand.clone())),
+        },
+        _ => unimplemented!(),
+    }
+}
+
 fn apply_op(left: MutRc<Literal>, op: &Token, right: MutRc<Literal>) -> Result<Literal, InterpreterError> {
     use TokenKind::*;
 
@@ -394,6 +419,70 @@ fn apply_op(left: MutRc<Literal>, op: &Token, right: MutRc<Literal>) -> Result<L
                 _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
             }
         },
+        And => {
+            match (&left, &right) {
+                (Literal::True, Literal::True) => Ok(Literal::True),
+                (Literal::False, Literal::True) => Ok(Literal::False),
+                (Literal::True, Literal::False) => Ok(Literal::False),
+                (Literal::False, Literal::False) => Ok(Literal::False),
+                (Literal::Number(left), Literal::Number(right)) => Ok(Literal::Number(left & right)),
+                _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
+            }
+        },
+        Or => {
+            match (&left, &right) {
+                (Literal::True, Literal::True) => Ok(Literal::True),
+                (Literal::False, Literal::True) => Ok(Literal::True),
+                (Literal::True, Literal::False) => Ok(Literal::True),
+                (Literal::False, Literal::False) => Ok(Literal::False),
+                (Literal::Number(left), Literal::Number(right)) => Ok(Literal::Number(left | right)),
+                _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
+            }
+        },
+        Xor => {
+            match (&left, &right) {
+                (Literal::True, Literal::True) => Ok(Literal::False),
+                (Literal::False, Literal::True) => Ok(Literal::True),
+                (Literal::True, Literal::False) => Ok(Literal::True),
+                (Literal::False, Literal::False) => Ok(Literal::False),
+                (Literal::Number(left), Literal::Number(right)) => Ok(Literal::Number(left ^ right)),
+                _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
+            }
+        },
+        LessThan => {
+            match (&left, &right) {
+                (Literal::Number(left), Literal::Number(right)) => Ok((left < right).into()),
+                _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
+            }
+        },
+        GreaterThan => {
+            match (&left, &right) {
+                (Literal::Number(left), Literal::Number(right)) => Ok((left > right).into()),
+                _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
+            }
+        },
+        LessOrEqual => {
+            match (&left, &right) {
+                (Literal::Number(left), Literal::Number(right)) => Ok((left <= right).into()),
+                _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
+            }
+        },
+        GreaterOrEqual => {
+            match (&left, &right) {
+                (Literal::Number(left), Literal::Number(right)) => Ok((left >= right).into()),
+                _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
+            }
+        },
+        EqualsEquals => {
+            match (&left, &right) {
+                (lit1, lit2) => Ok((lit1 == lit2).into())
+            }
+        },
+        NotEqual => {
+            match (&left, &right) {
+                (lit1, lit2) => Ok((lit1 != lit2).into())
+            }
+        }
         _ => unimplemented!(),
     }
 }

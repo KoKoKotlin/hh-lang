@@ -25,7 +25,7 @@ pub enum Statement {
 #[derive(Debug, Clone)]
 pub enum Expr {
     Binary(Box<Expr>, Token, Box<Expr>),
-    // Unary(Unary),
+    Unary(Token, Box<Expr>),
     Literal(MutRc<Literal>),
     Ident(Token),
     IdentIndexed(Token, Box<Expr>),
@@ -36,7 +36,7 @@ pub enum Expr {
     RecordFieldDeref(Token, Vec<Token>),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Literal {
     String(String),
     Number(i64),
@@ -106,5 +106,11 @@ impl Literal {
             Literal::RecordInstance(_, _) => "RecordInstance",
             Literal::Unit => "Unit",
         }
+    }
+}
+
+impl From<bool> for Literal {
+    fn from(value: bool) -> Self {
+        if value { Self::True } else { Self::False }
     }
 }
