@@ -1,0 +1,42 @@
+
+# let is for creating and directly assigning constants
+# the right of the "=" can only be a literal value 
+let a = 1;
+
+a = 3; # error: constants can't be reassigned
+
+# var is for assigning variables that can be reassigned
+# behind var can also be a literal but not need be
+var b = 2;
+var c;
+
+# when reassigning the right side of the "=" can also be expressions
+c = a + b;
+c = (2) [0, 0];
+
+# variables names are simply shadowed if you redeclare them
+
+# there are only function scopes, if and while are not scoped yet
+# this means that variables declared inside of if and while blocks 
+# are usable in the currents functions scope or in the global scope
+
+# the normal binary mathematical and logical operations are implement like addition and subtraction 
+# but also logical operations like logic and and logic or
+
+let a = true, b = false;
+var res;
+
+res = a or b;
+println res;
+
+let c = 4, d = 5;
+res = 1 - c * d + 5;
+pritnln res;
+
+# Possible values:
+var a;
+a = 10; # integer
+a = "Hello"; # string
+a = true; # bool
+a = (4) [0, 0, 0, 0]; # lists (see lists.hh)
+a = new Point(2, 2); # record instances (see records.hh)

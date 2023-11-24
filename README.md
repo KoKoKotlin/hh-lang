@@ -2,7 +2,7 @@
 
 Programming language that I make for solving AOC 2023.
 It uses duck typing like python and has support only for the bare minimum that is needed for solving AOC.
-For usage see the example folder (which is still TODO).
+For usage see the example folder.
 
 ## Grammar:
 ```
@@ -31,6 +31,10 @@ Factor      => IDENT { "." IDENT } | IDENT "[" Expr "]" | NUMBER | STRING | "(" 
 Literal     => NUMBER | STRING | BOOL | RecordInstance | ListLiteral
 BuiltIn     => "print" | "println" | "dbg"
 ```
+
+### Current Builtin Functions:
+  - `print` and `println`: Take an arbitrary amount of arguments and print them to stdout. Return: `()`
+  - `dbg`: Take an arbitrary amount of arguments and print their internal debug representation to stdout. Return: `()`
 
 ### TODO:
   - floats
