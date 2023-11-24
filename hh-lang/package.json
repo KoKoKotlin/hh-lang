@@ -1,0 +1,25 @@
+{
+  "name": "hh-lang",
+  "displayName": "hh-lang",
+  "description": "Language support for hh-lang",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.0.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [{
+      "id": "hhl",
+      "aliases": ["hh-lang", "hhl"],
+      "extensions": ["hhl"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "hhl",
+      "scopeName": "source.hhl",
+      "path": "./syntaxes/hhl.tmLanguage.json"
+    }]
+  }
+}

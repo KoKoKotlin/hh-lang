@@ -1,0 +1,57 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "hh-lang",
+	"patterns": [
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"include": "#contants"
+		},
+		{
+			"include": "#builtins"
+		},
+		{
+			"include": "#comments"
+		}
+	],
+	"repository": {
+		"keywords": {
+			"patterns": [{
+				"name": "keyword.control.hhl",
+				"match": "\\b(if|while|return|do|var|let|end|start|func|call|else|true|false|then|or|and|xor|record|new)\\b"
+			}]
+		},
+		"strings": {
+			"name": "string.quoted.double",
+			"begin": "\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"name": "constant.character.escape.hhl",
+					"match": "\\\\."
+				}
+			]
+		},
+		"comments": {
+			"name": "comment.line",
+			"match": "#.*$"
+		},
+		"contants": {
+			"name": "constant.language.hhl",
+			"match": "\\b(true|false)\\b"
+		},
+		"builtins": {
+			"name": "keyword.other.hhl",
+			"match": "\\b(println|print|dbg)\\b"
+		},
+		"numbers": {
+			"name": "constant.numeric.hhl",
+			"match": "[0-9]*"
+		}
+	},
+	"scopeName": "source.hhl"
+}

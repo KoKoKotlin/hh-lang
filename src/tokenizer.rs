@@ -49,12 +49,12 @@ pub enum TokenKind {
     Call,
     Record,
     New,
-    Dbg,
     Return,
 
     // built-in functions
     Print,
     Println,
+    Dbg,
 }
 
 impl Display for TokenKind {
