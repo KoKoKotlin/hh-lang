@@ -1,4 +1,11 @@
+use std::{rc::Rc, cell::RefCell, borrow::BorrowMut};
 use crate::{ast::{Program, Literal, Block, Statement, Expr}, tokenizer::{Token, TokenKind}};
+
+pub type MutRc<T> = Rc<RefCell<T>>;
+
+pub fn mut_rc<T>(t: T) -> MutRc<T> {
+    Rc::new(RefCell::new(t))
+}
 
 #[derive(Debug)]
 struct Scope {
@@ -6,8 +13,7 @@ struct Scope {
 }
 
 impl Scope {
-    fn new(init: Option<Vec<(&Token, &Literal)>>) -> Self {
-
+    fn new(init: Option<Vec<(&Token, MutRc<Literal>)>>) -> Self {
         if let Some(init) = init {
             let mut names = vec![];
 
@@ -32,7 +38,7 @@ impl Scope {
         self.names.iter().any(|n| n.name == tok.symbols)
     }
 
-    fn get_var_value(&self, tok: &Token) -> Result<Literal, InterpreterError> {
+    fn get_var_value(&self, tok: &Token) -> Result<MutRc<Literal>, InterpreterError> {
         for name in self.names.iter() {
             if name.name == tok.symbols {
                 if let Some(value) = &name.value {
@@ -54,7 +60,7 @@ impl Scope {
 #[derive(Debug)]
 struct Name {
     name: String,
-    value: Option<Literal>,
+    value: Option<MutRc<Literal>>,
     constant: bool,
 }
 
@@ -67,11 +73,11 @@ impl Name {
         self.constant
     }
 
-    fn make_const(name: &str, value: Literal) -> Self {
+    fn make_const(name: &str, value: MutRc<Literal>) -> Self {
         Self { name: name.to_string(), value: Some(value), constant: true }
     }
 
-    fn make_var(name: &str, value: Option<Literal>) -> Self {
+    fn make_var(name: &str, value: Option<MutRc<Literal>>) -> Self {
         Self { name: name.to_string(), value, constant: false }
     }
 }
@@ -140,7 +146,7 @@ impl InterpreterContext {
         Self { global_scope: Scope::new(None), record_decls: vec![], func_decls: vec![], scope_stack: vec![] }
     }
 
-    fn create_var(&mut self, tok: &Token, lit: Option<Literal>) {
+    fn create_var(&mut self, tok: &Token, lit: Option<MutRc<Literal>>) {
         let scope = if let Some(local_scope) = self.scope_stack.last_mut() {
             local_scope
         } else {
@@ -150,7 +156,7 @@ impl InterpreterContext {
         scope.push(Name::make_var(&tok.symbols, lit));
     }
 
-    fn create_const(&mut self, tok: &Token, lit: Literal) {
+    fn create_const(&mut self, tok: &Token, lit: MutRc<Literal>) {
         let scope = if let Some(local_scope) = self.scope_stack.last_mut() {
             local_scope
         } else {
@@ -177,7 +183,7 @@ impl InterpreterContext {
         self.scope_stack.last().map_or(exists_globally, |scope| scope.name_exists(tok))
     }
 
-    fn get_var_value(&self, tok: &Token) -> Result<Literal, InterpreterError> {
+    fn get_var_value(&self, tok: &Token) -> Result<MutRc<Literal>, InterpreterError> {
         if !self.name_exists(tok) { return Err(InterpreterError::VariableDoesNotExists(tok.clone())) };
 
         if let Some(scope) = self.scope_stack.last() {
@@ -187,13 +193,14 @@ impl InterpreterContext {
         }
     }
 
-    fn index_var(&mut self, tok: &Token, idx_expr: &Expr) -> Result<Literal, InterpreterError> {
+    fn index_var(&mut self, tok: &Token, idx_expr: &Expr) -> Result<MutRc<Literal>, InterpreterError> {
         let name_lit = self.get_var_value(tok)?;
-        self.index(tok,&name_lit, idx_expr)
+        let name_lit = name_lit.borrow();
+        self.index(tok, &name_lit, idx_expr)
     }
 
-    fn index(&mut self, tok: &Token, lit: &Literal, idx_expr: &Expr) -> Result<Literal, InterpreterError> {
-        if let Literal::Number(idx) = self.eval(idx_expr)? {
+    fn index(&mut self, tok: &Token, lit: &Literal, idx_expr: &Expr) -> Result<MutRc<Literal>, InterpreterError> {
+        if let Literal::Number(idx) = *self.eval(idx_expr)?.borrow() {
             if idx < 0 {
                 return Err(InterpreterError::IndexOutOfBounds(tok.clone()));
             }
@@ -219,7 +226,7 @@ impl InterpreterContext {
     }
 
     fn assign_indexed(&mut self, tok: &Token, idx_expr: &Expr, val_expr: &Expr) -> InterpreterResult {
-        let idx_lit = self.eval(idx_expr)?;
+        let idx_lit = self.eval(idx_expr)?.borrow().clone();
         let result = self.eval(val_expr)?;
 
         if let Some(name) = self.get_name(tok) {
@@ -231,23 +238,24 @@ impl InterpreterContext {
                 if name.value.is_none() {
                     return Err(InterpreterError::VariableNotInitialized(tok.clone()));
                 }
-
-                match name.value.as_mut().unwrap() {
+                
+                let value = name.value.as_ref().unwrap().clone();
+                match &*value.borrow() {
                     Literal::String(_) => return Err(InterpreterError::TypeError(tok.clone(), "String cannot be indexed".to_string())),
                     Literal::Number(_) => return Err(InterpreterError::TypeError(tok.clone(), "Number cannot be indexed".to_string())),
                     Literal::True => return Err(InterpreterError::TypeError(tok.clone(), "Bool cannot be indexed".to_string())),
                     Literal::False => return Err(InterpreterError::TypeError(tok.clone(), "Bool cannot be indexed".to_string())),
                     Literal::Unit => return Err(InterpreterError::TypeError(tok.clone(), "Unit cannot be indexed".to_string())),
                     Literal::RecordInstance(_, _) => return Err(InterpreterError::TypeError(tok.clone(), "Record instance cannot be indexed".to_string())),
-                    Literal::List(ref mut values) => {
+                    Literal::List(values) => {
                         if idx as usize >= values.len() {
                             return Err(InterpreterError::IndexOutOfBounds(tok.clone()));
                         }
 
-                        values[idx as usize] = result;
+                        values[idx as usize].replace(result.borrow().clone());
                         return Ok(());
                     },
-                }
+                };
             } else {
                 return Err(InterpreterError::TypeError(tok.clone(), "Indices must be Number".to_string()));
             }
@@ -256,12 +264,12 @@ impl InterpreterContext {
         }
     }
 
-    fn eval(&mut self, expr: &Expr) -> Result<Literal, InterpreterError> {
+    fn eval(&mut self, expr: &Expr) -> Result<MutRc<Literal>, InterpreterError> {
         match expr {
             Expr::Binary(left, op, right) => {
                 let left = self.eval(&left)?;
                 let right = self.eval(&right)?;
-                apply_op(&left, op, &right)
+                apply_op(left, op, right).map(|lit| mut_rc(lit))
             },
             Expr::Literal(lit) => Ok(lit.clone()),
             Expr::Ident(tok) => {
@@ -283,18 +291,18 @@ impl InterpreterContext {
         None
     }
 
-    fn exec_func(&mut self, func_name: &Token, args_exprs: &Vec<Expr>) -> Result<Literal, InterpreterError> {
+    fn exec_func(&mut self, func_name: &Token, args_exprs: &Vec<Expr>) -> Result<MutRc<Literal>, InterpreterError> {
         if let Some(func) = self.get_func(func_name) {
             if func.args.len() != args_exprs.len() {
                 return Err(InterpreterError::CallArgumentCount(func_name.clone()));
             }
 
-            let args_lits: Result<Vec<Literal>, InterpreterError> = args_exprs.iter()
+            let args_lits: Result<Vec<MutRc<Literal>>, InterpreterError> = args_exprs.iter()
                 .map(|expr| self.eval(expr))
                 .collect();
             let args_lits = args_lits?;
 
-            let func_scope = Scope::new(Some(func.args.iter().zip(args_lits.iter()).collect()));
+            let func_scope = Scope::new(Some(func.args.iter().zip(args_lits.into_iter()).collect()));
             self.scope_stack.push(func_scope);
             exec_block(self, &func.code)?;
             let _ = self.scope_stack.pop();
@@ -302,7 +310,7 @@ impl InterpreterContext {
             return Err(InterpreterError::FunctionNotDeclared(func_name.clone()));
         }
 
-        Ok(Literal::Unit)
+        Ok(mut_rc(Literal::Unit))
     }
 
     fn get_record(&self, record_name: &Token) -> Option<Record> {
@@ -312,7 +320,7 @@ impl InterpreterContext {
         None
     }
 
-    fn instance_record(&mut self, record_name: &Token, field_exprs: &Vec<Expr>) -> Result<Literal, InterpreterError> {
+    fn instance_record(&mut self, record_name: &Token, field_exprs: &Vec<Expr>) -> Result<MutRc<Literal>, InterpreterError> {
         let record = self.get_record(record_name);
 
         if let Some(record) = record {
@@ -320,17 +328,17 @@ impl InterpreterContext {
                 return Err(InterpreterError::RecordFieldCount(record_name.clone()));
             }
 
-            let field_lits: Result<Vec<Literal>, InterpreterError> = field_exprs.iter().map(|expr| self.eval(expr)).collect();
-            return Ok(Literal::RecordInstance(record_name.clone(), field_lits?));
+            let field_lits: Result<Vec<MutRc<Literal>>, InterpreterError> = field_exprs.iter().map(|expr| self.eval(expr)).collect();
+            return Ok(mut_rc(Literal::RecordInstance(record_name.clone(), field_lits?)));
         } else {
             return Err(InterpreterError::RecordNotDeclared(record_name.clone()));
         }
     }
 
-    fn record_field_defef(&mut self, record_tok: &Token, record_lit: &Literal, field_toks: &Vec<Token>, current_tok_idx: usize) -> Result<Literal, InterpreterError> {
-        if current_tok_idx >= field_toks.len() { return Ok(record_lit.clone()); }
+    fn record_field_defef(&mut self, record_tok: &Token, record_lit: MutRc<Literal>, field_toks: &Vec<Token>, current_tok_idx: usize) -> Result<MutRc<Literal>, InterpreterError> {
+        if current_tok_idx >= field_toks.len() { return Ok(record_lit); }
 
-        let (record_name, field_lits) = match record_lit {
+        let (record_name, field_lits) = match record_lit.borrow().clone() {
             Literal::RecordInstance(record_name, field_lits) => (record_name, field_lits),
             lit => return Err(
                 InterpreterError::TypeError(record_tok.clone(), 
@@ -343,19 +351,23 @@ impl InterpreterContext {
         let field_tok = &field_toks[current_tok_idx];
         if let Some(idx) = record.find_field(field_tok) {
             let lit = &field_lits[idx];
-            return self.record_field_defef(record_tok, lit, field_toks, current_tok_idx + 1);
+            return self.record_field_defef(record_tok, lit.clone(), field_toks, current_tok_idx + 1);
         } else {
             return Err(InterpreterError::RecordFieldDoesNotExist(record.name.clone(), field_tok.clone()));
         }
     }
 }
 
-fn apply_op(left: &Literal, op: &Token, right: &Literal) -> Result<Literal, InterpreterError> {
+fn apply_op(left: MutRc<Literal>, op: &Token, right: MutRc<Literal>) -> Result<Literal, InterpreterError> {
     use TokenKind::*;
+
+    // TODO for better performance don't clone
+    let left = left.borrow().clone();
+    let right = right.borrow().clone();
 
     return match op.kind {
         Plus => {
-            match (left, right) {
+            match (&left, &right) {
                 (Literal::Number(left), Literal::Number(right)) => Ok(Literal::Number(left + right)),
                 
                 (Literal::String(left), Literal::String(right)) => Ok(Literal::String(format!("{}{}", left, right))),
@@ -365,19 +377,19 @@ fn apply_op(left: &Literal, op: &Token, right: &Literal) -> Result<Literal, Inte
             }
         },
         Minus => {
-            match (left, right) {
+            match (&left, &right) {
                 (Literal::Number(left), Literal::Number(right)) => Ok(Literal::Number(left - right)),
                 _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
             }
         },
         Times => {
-            match (left, right) {
+            match (&left, &right) {
                 (Literal::Number(left), Literal::Number(right)) => Ok(Literal::Number(left * right)),
                 _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
             }
         },
         Div => {
-            match (left, right) {
+            match (&left, &right) {
                 (Literal::Number(left), Literal::Number(right)) if *right != 0 => Ok(Literal::Number(left / right)),
                 (Literal::Number(_), Literal::Number(right)) if *right == 0 => Err(InterpreterError::DivisionByZero(op.clone())),
                 _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
@@ -387,7 +399,7 @@ fn apply_op(left: &Literal, op: &Token, right: &Literal) -> Result<Literal, Inte
     }
 }
 
-fn exec_reassign(context: &mut InterpreterContext, tok: &Token, expr: &Expr) -> InterpreterResult {
+fn exec_reassign(context: &mut InterpreterContext, tok: &Token, field_toks: &Vec<Token>, expr: &Expr) -> InterpreterResult {
     if !context.name_exists(tok) {
         return Err(InterpreterError::VariableDoesNotExists(tok.clone()));
     }
@@ -399,7 +411,16 @@ fn exec_reassign(context: &mut InterpreterContext, tok: &Token, expr: &Expr) -> 
         return Err(InterpreterError::ConstantReassign(tok.clone()));
     }
 
-    name.value = Some(result?);
+    if field_toks.len() == 0 {
+        name.value = Some(result?);
+    } else {
+        if let Some(record_lit) = name.value.clone() {
+            let record_deref = context.record_field_defef(tok, record_lit, field_toks, 0)?;
+            record_deref.replace(result?.borrow().clone());
+        } else {
+            return Err(InterpreterError::VariableNotInitialized(tok.clone()));
+        }
+    }
 
     Ok(())
 }
@@ -416,7 +437,7 @@ fn exec_list_reassign(context: &mut InterpreterContext, tok: &Token, idx_expr: &
 
 fn exec_const_assign(context: &mut InterpreterContext, assigns: &Vec<(Token, Literal)>) -> InterpreterResult {
     for (tok, lit) in assigns {
-        context.create_const(tok, lit.clone());
+        context.create_const(tok, mut_rc(lit.clone()));
     }
 
     Ok(())
@@ -424,14 +445,15 @@ fn exec_const_assign(context: &mut InterpreterContext, assigns: &Vec<(Token, Lit
 
 fn exec_var_decl(context: &mut InterpreterContext, decls: &Vec<(Token, Option<Literal>)>) -> InterpreterResult {
     for (tok, lit) in decls {
-        context.create_var(tok, lit.clone());
+        let lits = lit.clone().map(|lit| mut_rc(lit));
+        context.create_var(tok, lits);
     }
 
     Ok(())
 }
 
-fn exec_list_instantiation(context: &mut InterpreterContext, tok: &Token, capacity_expr: &Expr, init_exprs: &Vec<Expr>) -> Result<Literal, InterpreterError> {
-    let capacity = match context.eval(capacity_expr)? {
+fn exec_list_instantiation(context: &mut InterpreterContext, tok: &Token, capacity_expr: &Expr, init_exprs: &Vec<Expr>) -> Result<MutRc<Literal>, InterpreterError> {
+    let capacity = match *context.eval(capacity_expr)?.borrow() {
         Literal::String(_) => return Err(InterpreterError::TypeError(tok.clone(), "String cannot be used as a list".to_string())),
         Literal::Number(num) => {
             if num < 0 {
@@ -452,19 +474,20 @@ fn exec_list_instantiation(context: &mut InterpreterContext, tok: &Token, capaci
         return Err(InterpreterError::IndexOutOfBounds(tok.clone()));
     }
     
-    let init_lits: Result<Vec<Literal>, InterpreterError> = init_exprs.iter().map(|expr| context.eval(expr)).collect();
+    let init_lits: Result<Vec<MutRc<Literal>>, InterpreterError> = init_exprs.iter().map(|expr| context.eval(expr)).collect();
     let init_lits = init_lits?;
 
     value.extend(init_lits);
     for _ in 0..(capacity - init_exprs.len()) {
-        value.push(Literal::Number(0));
+        value.push(mut_rc(Literal::Number(0)));
     }
     
-    Ok(Literal::List(value))
+    Ok(mut_rc(Literal::List(value)))
 }
 
 fn exec_if(context: &mut InterpreterContext, cond: &Expr, if_block: &Block, else_block: Option<&Block>) -> InterpreterResult {
     let cond = context.eval(cond)?;
+    let cond = cond.borrow();
 
     if cond.is_truthy() {
         exec_block(context, if_block)?;
@@ -478,7 +501,7 @@ fn exec_if(context: &mut InterpreterContext, cond: &Expr, if_block: &Block, else
 fn exec_while(context: &mut InterpreterContext, cond_expr: &Expr, block: &Block) -> InterpreterResult {
 
     let mut cond = context.eval(cond_expr)?;
-    while cond.is_truthy() {
+    while (*cond.borrow()).is_truthy() {
         exec_block(context, block)?;
         cond = context.eval(cond_expr)?;
     }
@@ -486,34 +509,34 @@ fn exec_while(context: &mut InterpreterContext, cond_expr: &Expr, block: &Block)
     Ok(())
 }
 
-fn exec_built_in(context: &mut InterpreterContext, tok: &Token, args: &Vec<Expr>) -> Result<Literal, InterpreterError> {
+fn exec_built_in(context: &mut InterpreterContext, tok: &Token, args: &Vec<Expr>) -> Result<MutRc<Literal>, InterpreterError> {
     use TokenKind::*;
 
     match tok.kind {
         Print => {
             for arg in args {
                 let arg = context.eval(arg)?;
-                print!("{}", arg);
+                print!("{}", *arg.borrow());
             }
         },
         Println => {
             for arg in args {
                 let arg = context.eval(arg)?;
-                print!("{}", arg);
+                print!("{}", *arg.borrow());
             }
             println!();
         },
         Dbg => {
             for arg in args {
                 let arg = context.eval(arg)?;
-                print!("{:?}", arg);
+                print!("{:?}", *arg.borrow());
             }
             println!();
         }
         _ => unimplemented!("BuiltIn {:?} not implemented yet", tok.kind),
     }
 
-    Ok(Literal::Unit)
+    Ok(mut_rc(Literal::Unit))
 }
 
 fn exec_func_decl(context: &mut InterpreterContext, func_name: &Token, args: &Vec<Token>, code: &Block) -> InterpreterResult {
@@ -526,7 +549,7 @@ fn exec_record_decl(context: &mut InterpreterContext, record_name: &Token, field
     Ok(())
 }
 
-fn exec_func_call(context: &mut InterpreterContext, func_name: &Token, args_exprs: &Vec<Expr>) -> Result<Literal, InterpreterError> {
+fn exec_func_call(context: &mut InterpreterContext, func_name: &Token, args_exprs: &Vec<Expr>) -> Result<MutRc<Literal>, InterpreterError> {
     context.exec_func(func_name, args_exprs)
 }
 
@@ -535,19 +558,19 @@ fn exec_expr(context: &mut InterpreterContext, expr: &Expr) -> InterpreterResult
     Ok(())
 }
 
-fn exec_record_instantiation(context: &mut InterpreterContext, record_name: &Token, field_values: &Vec<Expr>) -> Result<Literal, InterpreterError> {
+fn exec_record_instantiation(context: &mut InterpreterContext, record_name: &Token, field_values: &Vec<Expr>) -> Result<MutRc<Literal>, InterpreterError> {
     context.instance_record(record_name, field_values)
 }
 
-fn exec_record_field_deref(context: &mut InterpreterContext, record_tok: &Token, field_toks: &Vec<Token>) -> Result<Literal, InterpreterError> {
+fn exec_record_field_deref(context: &mut InterpreterContext, record_tok: &Token, field_toks: &Vec<Token>) -> Result<MutRc<Literal>, InterpreterError> {
     let value = context.get_var_value(record_tok)?;
-    context.record_field_defef(record_tok,&value, field_toks, 0)
+    context.record_field_defef(record_tok,value, field_toks, 0)
 }
 
 fn exec_block(context: &mut InterpreterContext, block: &Block) -> InterpreterResult {
     for statment in block.0.iter() {
         match statment {
-            Statement::Reassign(tok, expr) => exec_reassign(context, tok, expr)?,
+            Statement::Reassign(tok, field_toks, expr) => exec_reassign(context, tok, field_toks, expr)?,
             Statement::ListReassign(tok, idx_expr, val_expr) => exec_list_reassign(context, tok, idx_expr, val_expr)?,
             Statement::ConstAssign(assigns) => exec_const_assign(context, assigns)?,
             Statement::VarDecl(decls) => exec_var_decl(context, decls)?,

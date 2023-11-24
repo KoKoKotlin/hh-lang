@@ -1,4 +1,4 @@
-use crate::{tokenizer::{Tokenizer, TokenKind, Token}, ast::{Expr, Literal, Block, Statement, Program}};
+use crate::{tokenizer::{Tokenizer, TokenKind, Token}, ast::{Expr, Literal, Block, Statement, Program}, interpreter::mut_rc};
 
 pub struct Parser {
     tokenizer: Tokenizer,
@@ -35,7 +35,7 @@ const BUILT_INS: [TokenKind; 3] = [
  * Block       => [ "let" IDENT "=" Literal {, IDENT "=" Literal } ";" ] |
  *                [ "var" IDENT { "=" Literal } {, IDENT {"=" Literal}} ";" ] |
  *                [ Statement ]
- * Statement   => IDENT "=" Expr ";" |
+ * Statement   => IDENT { "." IDENT } "=" Expr ";" |
  *                IDENT "[" Expr "]" "=" Expr ";" |
  *                "if" Expr "then" Block {"else" Block} "end" |
  *                "while" Expr "do" Block "end" |
@@ -270,12 +270,25 @@ impl Parser {
 
                 return Ok(Statement::ListReassign(ident, index, expr));
             },
+            Some(Dot) => {
+                let mut idents = vec![];                        
+                while Some(Dot) == self.peek() {
+                    self.consume(&[Dot]).ok_or(())?;
+                    idents.push(self.consume(&[Ident]).ok_or(())?);
+                }
+
+                self.consume(&[Equals]).ok_or(())?;
+                let expr = self.expr()?;
+                self.consume(&[Semicolon]).ok_or(())?;
+
+                return Ok(Statement::Reassign(ident, idents, expr));
+            }
             Some(Equals) => {
                 self.consume(&[Equals]).ok_or(())?;
                 let expr = self.expr()?;
                 self.consume(&[Semicolon]).ok_or(())?;
-        
-                Ok(Statement::Reassign(ident, expr))
+                
+                Ok(Statement::Reassign(ident, vec![], expr))
             },
             _ => {
                 let tok = self.get();
@@ -360,7 +373,7 @@ impl Parser {
             },
             Some(Number) | Some(True) | Some(False) | Some(String) => {
                 let lit = self.literal()?;
-                return Ok(Expr::Literal(lit));
+                return Ok(Expr::Literal(mut_rc(lit)));
             },
             Some(Ident) => {
                 let ident = self.consume(&[Ident]).ok_or(())?;

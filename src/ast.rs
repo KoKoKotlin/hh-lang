@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use crate::tokenizer::Token;
+use crate::{tokenizer::Token, interpreter::MutRc};
 
 #[derive(Debug, Clone)]
 pub struct Program(pub Vec<Block>);
@@ -10,7 +10,7 @@ pub struct Block(pub Vec<Statement>);
 
 #[derive(Debug, Clone)]
 pub enum Statement {
-    Reassign(Token, Expr),
+    Reassign(Token, Vec<Token>, Expr),
     ListReassign(Token, Expr, Expr),
     ConstAssign(Vec<(Token, Literal)>),
     VarDecl(Vec<(Token, Option<Literal>)>),
@@ -25,7 +25,7 @@ pub enum Statement {
 pub enum Expr {
     Binary(Box<Expr>, Token, Box<Expr>),
     // Unary(Unary),
-    Literal(Literal),
+    Literal(MutRc<Literal>),
     Ident(Token),
     IdentIndexed(Token, Box<Expr>),
     FuncCall(Token, Vec<Expr>),
@@ -41,8 +41,8 @@ pub enum Literal {
     Number(i64),
     True,
     False,
-    List(Vec<Literal>),
-    RecordInstance(Token, Vec<Literal>),
+    List(Vec<MutRc<Literal>>),
+    RecordInstance(Token, Vec<MutRc<Literal>>),
     Unit,
 }
 
@@ -76,7 +76,7 @@ impl Literal {
                 let mut buf = String::new();
                 buf.push_str("[ ");
                 for lit in values {
-                    buf.push_str(&format!("{} ", lit));
+                    buf.push_str(&format!("{} ", lit.borrow()));
                 }
                 buf.push_str("]");
                 buf
@@ -86,7 +86,7 @@ impl Literal {
                 buf.push_str(&record_name.symbols);
                 buf.push_str("{ ");
                 for lit in field_values {
-                    buf.push_str(&format!("{} ", lit));
+                    buf.push_str(&format!("{} ", lit.borrow()));
                 }
                 buf.push_str("}");
                 buf
