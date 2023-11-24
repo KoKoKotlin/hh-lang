@@ -50,6 +50,7 @@ pub enum TokenKind {
     Record,
     New,
     Dbg,
+    Return,
 
     // built-in functions
     Print,
@@ -104,6 +105,7 @@ impl Display for TokenKind {
             Record => "record",
             New => "new",
             Dbg => "Built-In Dbg",
+            Return => "return",
         })
     }
 }
@@ -290,6 +292,7 @@ pub fn parse_ident(slice: &str) -> TokenKind {
         "record" => TokenKind::Record,
         "new" => TokenKind::New,
         "dbg" => TokenKind::Dbg,
+        "return" => TokenKind::Return,
         _ => TokenKind::Ident,
     }
 }

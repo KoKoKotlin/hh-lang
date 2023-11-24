@@ -16,6 +16,7 @@ Statement   => IDENT { "." IDENT } "=" Expr ";" |
             "while" Expr "do" Block "end" |
             "func" IDENT {IDENT} "start" Block "end" |
             "record" "start" IDENT "end" |
+            "return" Expr ";" |
             Expr ";"
 Expr        => {UN_OP} Term { ADD_OP term } |
             FuncCall |

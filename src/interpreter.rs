@@ -304,13 +304,12 @@ impl InterpreterContext {
 
             let func_scope = Scope::new(Some(func.args.iter().zip(args_lits.into_iter()).collect()));
             self.scope_stack.push(func_scope);
-            exec_block(self, &func.code)?;
+            let return_val = exec_block(self, &func.code)?;
             let _ = self.scope_stack.pop();
+            return Ok(return_val);
         } else {
             return Err(InterpreterError::FunctionNotDeclared(func_name.clone()));
         }
-
-        Ok(mut_rc(Literal::Unit))
     }
 
     fn get_record(&self, record_name: &Token) -> Option<Record> {
@@ -567,7 +566,7 @@ fn exec_record_field_deref(context: &mut InterpreterContext, record_tok: &Token,
     context.record_field_defef(record_tok,value, field_toks, 0)
 }
 
-fn exec_block(context: &mut InterpreterContext, block: &Block) -> InterpreterResult {
+fn exec_block(context: &mut InterpreterContext, block: &Block) -> Result<MutRc<Literal>, InterpreterError> {
     for statment in block.0.iter() {
         match statment {
             Statement::Reassign(tok, field_toks, expr) => exec_reassign(context, tok, field_toks, expr)?,
@@ -579,10 +578,13 @@ fn exec_block(context: &mut InterpreterContext, block: &Block) -> InterpreterRes
             Statement::FuncDecl(func_name, args, code) => exec_func_decl(context, func_name, args, code)?,
             Statement::RecordDecl(record_name, fields) => exec_record_decl(context, record_name, fields)?,
             Statement::Expr(expr) => exec_expr(context, expr)?,
+            Statement::Return(expr) => {
+                return Ok(context.eval(expr)?);
+            },
         }
     }
 
-    Ok(())
+    Ok(mut_rc(Literal::Unit))
 }
 
 pub fn interprete_ast(root_node: Program) -> (InterpreterResult, InterpreterContext) {

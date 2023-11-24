@@ -66,6 +66,7 @@ impl Parser {
                 While => self.elihw()?,
                 Func => self.func()?,
                 Record => self.record()?,
+                Return => self.return_()?,
                 End | Else => { break; }
                 // if all else fails try to parse the next statement as a standalone expression
                 _ => {
@@ -136,6 +137,17 @@ impl Parser {
         
         return Ok(Statement::While(condition, block));
     }
+
+    fn return_(&mut self) -> Result<Statement, ()> {
+        use TokenKind::*;
+
+        self.consume(&[Return]).ok_or(())?;
+        let return_expr = self.expr()?;
+        self.consume(&[Semicolon]).ok_or(())?;
+
+        return Ok(Statement::Return(return_expr));
+    }
+
 
     fn func(&mut self) -> Result<Statement, ()> {
         use TokenKind::*;
