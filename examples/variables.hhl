@@ -1,4 +1,3 @@
-
 # let is for creating and directly assigning constants
 # the right of the "=" can only be a literal value 
 let a = 1;
@@ -31,11 +30,11 @@ println res;
 
 let c = 4, d = 5;
 res = 1 - c * d + 5;
-pritnln res;
+println res;
 
 # Possible values:
 var a;
-a = 10; # integer
+a = "Glo"; # integer
 a = "Hello"; # string
 a = true; # bool
 a = (4) [0, 0, 0, 0]; # lists (see lists.hh)
