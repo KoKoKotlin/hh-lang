@@ -1,5 +1,5 @@
 use std::{rc::Rc, cell::RefCell, fs};
-use crate::{ast::{Program, Literal, Block, Statement, Expr}, tokenizer::{Token, TokenKind}};
+use crate::{ast::{Program, Literal, Block, Statement, Expr}, tokenizer::{Token, TokenKind}, parser::Parser};
 
 pub type MutRc<T> = Rc<RefCell<T>>;
 
@@ -139,6 +139,43 @@ pub enum InterpreterError {
     RecordFieldCount(Token),
     RecordFieldDoesNotExist(Token, Token),
     BuiltInError(Token, String),
+}
+
+impl InterpreterError {
+    pub fn info(&self) -> String {
+        match self {
+            InterpreterError::VariableDoesNotExists(name_tok) => 
+                format!("Variable {} at {} does not exists!", name_tok.loc, name_tok.loc),
+            InterpreterError::ConstantReassign(name_tok) => 
+                format!("Can't reassing constant {} at {}!", name_tok.loc, name_tok.loc),
+            InterpreterError::VariableNotInitialized(name_tok) => 
+                format!("Variable {} at {} is not initialized!", name_tok.loc, name_tok.loc),
+            InterpreterError::UndefinedUnaryOperation(op_tok, lit) => 
+                format!("Can't apply unary operator {} at {} to literal of type {}!", op_tok.symbols, op_tok.loc, lit.get_type()),
+            InterpreterError::UndefinedBinOperation(lit1, op_tok,lit2) => 
+                format!("Can't perform binary operation {} at {} on values of type {} and {}!", op_tok.symbols, op_tok.loc, lit1.get_type(), lit2.get_type()),
+            InterpreterError::DivisionByZero(op_token) => 
+                format!("Division by zero at {}!", op_token.loc),
+            InterpreterError::TypeError(name_tok, reason) => 
+                format!("TypeError at {}! Reason: {}", name_tok.loc, reason),
+            InterpreterError::ValueError(name_tok, reason) =>
+                format!("ValueError at {}! Reason: {}", name_tok.loc, reason),
+            InterpreterError::IndexOutOfBounds(name_tok) =>
+                format!("Index out of bounds ({}) at {}!", name_tok.symbols, name_tok.loc),
+            InterpreterError::FunctionNotDeclared(name_tok) =>
+                format!("Function {} not declared at {}!", name_tok.symbols, name_tok.loc),
+            InterpreterError::CallArgumentCount(name_tok) => 
+                format!("Wrong number of arguments to call of {} at {}!", name_tok.symbols, name_tok.loc),
+            InterpreterError::RecordNotDeclared(name_tok) => 
+                format!("Record {} not declared at {}!", name_tok.symbols, name_tok.loc),
+            InterpreterError::RecordFieldCount(name_tok) => 
+                format!("Wrong number of initial expressions for new record {} at {}!", name_tok.symbols, name_tok.loc),
+            InterpreterError::RecordFieldDoesNotExist(record_tok, field_tok) => 
+                format!("Field {} does not exist in record {} at {}!", field_tok.symbols, record_tok.symbols, field_tok.loc),
+            InterpreterError::BuiltInError(name_tok, err_str) => 
+                format!("Error during execution of built in function {} at {}: Reason: {}", name_tok.symbols, name_tok.loc, err_str),
+        }
+    }
 }
 
 pub type InterpreterResult = Result<(), InterpreterError>;

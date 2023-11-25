@@ -21,7 +21,7 @@ fn load_source_code_file(path: &str) -> std::io::Result<String> {
 
 fn main() {
     let source_code = load_source_code_file(SOURCE_FILE_PATH).unwrap();
-    if true {
+    if false {
         let mut tokenizer = tokenizer::Tokenizer::new(source_code.clone());
         while let Some(token) = tokenizer.next_token() {
             println!("{:?}", token);
@@ -34,10 +34,7 @@ fn main() {
     if let Ok(ast_root) = ast_root {
         let (err, context) = interprete_ast(ast_root);
         match &err {
-            Err(InterpreterError::VariableDoesNotExists(tok)) => {
-                println!("Err: {:?}\nContext:\n{}", err, parser.get_context(tok));
-                println!("Context: {:?}", context);
-            }
+            Err(err) => println!("{}", err.info()),
             _ => {}
         }
     }
