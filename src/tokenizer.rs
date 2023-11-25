@@ -238,7 +238,7 @@ fn get_number_parse_mode(char_iter: &mut Chars) -> (NumberParseMode, usize, bool
 
 fn bin(char_iter: &mut Chars) -> usize {
     for (idx, c) in char_iter.enumerate() {
-        if c != '0' || c != '1' { return idx; }
+        if c != '0' && c != '1' { return idx; }
     } 
     0
 }
@@ -279,7 +279,6 @@ fn hex(char_iter: &mut Chars) -> usize {
 
 fn number(mut char_iter: Chars) -> (usize, Option<TokenKind>) {
     let (parse_mode, skip, point_in_prefix) = get_number_parse_mode(&mut char_iter);
-    
     match parse_mode {
         NumberParseMode::Bin => { 
             let tok_len = bin(&mut char_iter);
