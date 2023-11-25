@@ -34,7 +34,7 @@ println res;
 
 # Possible values:
 var a;
-a = "Glo"; # integer
+a = 10; # integer
 a = "Hello"; # string
 a = true; # bool
 a = (4) [0, 0, 0, 0]; # lists (see lists.hh)

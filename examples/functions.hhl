@@ -12,7 +12,7 @@ end
 
 # it is possible to return values from the function
 func add a b start
-    return a + b
+    return a + b;
 end
 
 let a = 1, b = 2;

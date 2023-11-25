@@ -1,11 +1,11 @@
 
-var data_file, text;
-data_file = readfile "README.md";
-println data_file;
-
 record Point start
     x
     y
 end
 
-writefile "test.txt", new Point(100, 120);
+var p1;
+p1 = new Point(0c11, 0c12);
+println p1;
+dbg p1.x;
+dbg p1.y;

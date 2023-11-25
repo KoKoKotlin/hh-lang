@@ -39,7 +39,8 @@ pub enum Expr {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Literal {
     String(String),
-    Number(i64),
+    Int(i64),
+    Float(f64),
     True,
     False,
     List(Vec<MutRc<Literal>>),
@@ -57,7 +58,8 @@ impl Literal {
     pub fn is_truthy(&self) -> bool {
         match self {
             Literal::String(str) => !str.is_empty(),
-            Literal::Number(num) => *num != 0,
+            Literal::Int(num) => *num != 0,
+            Literal::Float(num) => *num != 0.0,
             Literal::List(values) => values.len() != 0, 
             Literal::True => true,
             Literal::False => false,
@@ -69,7 +71,8 @@ impl Literal {
     pub fn string(&self) -> String {
         match self {
             Literal::String(str) => str.clone(),
-            Literal::Number(num) => num.to_string(),
+            Literal::Int(num) => num.to_string(),
+            Literal::Float(num) => num.to_string(),
             Literal::True => "true".to_string(),
             Literal::False => "false".to_string(),
             Literal::Unit => "()".to_string(),
@@ -99,7 +102,8 @@ impl Literal {
     pub fn get_type(&self) -> &'static str {
         match self {
             Literal::String(_) => "String",
-            Literal::Number(_) => "Number",
+            Literal::Int(_) => "Int",
+            Literal::Float(_) => "Float",
             Literal::True => "Bool",
             Literal::False => "Bool",
             Literal::List(_) => "List",

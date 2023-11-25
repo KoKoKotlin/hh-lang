@@ -30,8 +30,8 @@ LogicExpr   => CompExpr { LOGIC_OP CompExpr }
 CompExpr    => AddExpr { LOGIC_OP AddExpr }
 AddExpr     => MultExpr { ADD_OP MultExpr }
 MultExpr    => Factor { MULT_OP Factor }
-Factor      => [ UNARY_OP ] IDENT { "." IDENT } | IDENT "[" Expr "]" | NUMBER | STRING | "(" Expr ")"
-Literal     => NUMBER | STRING | BOOL | RecordInstance | ListLiteral
+Factor      => [ UNARY_OP ] IDENT { "." IDENT } | IDENT "[" Expr "]" | Literal | "(" Expr ")"
+Literal     => INT | FLOAT | STRING | BOOL | RecordInstance | List
 BuiltIn     => "print" | "println" | "dbg"
 ```
 

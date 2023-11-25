@@ -1,4 +1,4 @@
-use std::{rc::Rc, cell::RefCell, borrow::BorrowMut, fs};
+use std::{rc::Rc, cell::RefCell, fs};
 use crate::{ast::{Program, Literal, Block, Statement, Expr}, tokenizer::{Token, TokenKind}};
 
 pub type MutRc<T> = Rc<RefCell<T>>;
@@ -202,18 +202,12 @@ impl InterpreterContext {
     }
 
     fn index(&mut self, tok: &Token, lit: &Literal, idx_expr: &Expr) -> Result<MutRc<Literal>, InterpreterError> {
-        if let Literal::Number(idx) = *self.eval(idx_expr)?.borrow() {
+        if let Literal::Int(idx) = *self.eval(idx_expr)?.borrow() {
             if idx < 0 {
                 return Err(InterpreterError::IndexOutOfBounds(tok.clone()));
             }
 
             match lit {
-                Literal::String(_) => return Err(InterpreterError::TypeError(tok.clone(), "String cannot be indexed".to_string())),
-                Literal::Number(_) => return Err(InterpreterError::TypeError(tok.clone(), "Number cannot be indexed".to_string())),
-                Literal::True => return Err(InterpreterError::TypeError(tok.clone(), "Bool cannot be indexed".to_string())),
-                Literal::False => return Err(InterpreterError::TypeError(tok.clone(), "Bool cannot be indexed".to_string())),
-                Literal::Unit => return Err(InterpreterError::TypeError(tok.clone(), "Unit cannot be indexed".to_string())),
-                Literal::RecordInstance(_, _) => return Err(InterpreterError::TypeError(tok.clone(), "Record instance cannot be indexed".to_string())),
                 Literal::List(values) => {
                     if idx as usize >= values.len() {
                         return Err(InterpreterError::IndexOutOfBounds(tok.clone()));
@@ -221,6 +215,7 @@ impl InterpreterContext {
 
                     return Ok(values[idx as usize].clone());
                 },
+                lit => return Err(InterpreterError::TypeError(tok.clone(), format!("{} cannot be indexed!", lit.get_type()))),
             }
         } else {
             return Err(InterpreterError::TypeError(tok.clone(), "Indices must be Number".to_string()));
@@ -232,7 +227,7 @@ impl InterpreterContext {
         let result = self.eval(val_expr)?;
 
         if let Some(name) = self.get_name(tok) {
-            if let Literal::Number(idx) = idx_lit {
+            if let Literal::Int(idx) = idx_lit {
                 if idx < 0 {
                     return Err(InterpreterError::IndexOutOfBounds(tok.clone()));
                 }
@@ -243,12 +238,6 @@ impl InterpreterContext {
                 
                 let value = name.value.as_ref().unwrap().clone();
                 match &*value.borrow() {
-                    Literal::String(_) => return Err(InterpreterError::TypeError(tok.clone(), "String cannot be indexed".to_string())),
-                    Literal::Number(_) => return Err(InterpreterError::TypeError(tok.clone(), "Number cannot be indexed".to_string())),
-                    Literal::True => return Err(InterpreterError::TypeError(tok.clone(), "Bool cannot be indexed".to_string())),
-                    Literal::False => return Err(InterpreterError::TypeError(tok.clone(), "Bool cannot be indexed".to_string())),
-                    Literal::Unit => return Err(InterpreterError::TypeError(tok.clone(), "Unit cannot be indexed".to_string())),
-                    Literal::RecordInstance(_, _) => return Err(InterpreterError::TypeError(tok.clone(), "Record instance cannot be indexed".to_string())),
                     Literal::List(values) => {
                         if idx as usize >= values.len() {
                             return Err(InterpreterError::IndexOutOfBounds(tok.clone()));
@@ -257,6 +246,7 @@ impl InterpreterContext {
                         values[idx as usize].replace(result.borrow().clone());
                         return Ok(());
                     },
+                    lit => return Err(InterpreterError::TypeError(tok.clone(), format!("{} cannot be indexed!", lit.get_type()))),
                 };
             } else {
                 return Err(InterpreterError::TypeError(tok.clone(), "Indices must be Number".to_string()));
@@ -371,7 +361,8 @@ fn apply_unary(op: &Token, operand: MutRc<Literal>) -> Result<Literal, Interpret
 
     return match op.kind {
         Minus => match &operand {
-            Literal::Number(n) => Ok(Literal::Number(-n)),
+            Literal::Int(n) => Ok(Literal::Int(-n)),
+            Literal::Float(n) => Ok(Literal::Float(-n)),
             _ => Err(InterpreterError::UndefinedUnaryOperation(op.clone(), operand.clone())),
         },
         Bang => match &operand {
@@ -393,8 +384,10 @@ fn apply_op(left: MutRc<Literal>, op: &Token, right: MutRc<Literal>) -> Result<L
     return match op.kind {
         Plus => {
             match (&left, &right) {
-                (Literal::Number(left), Literal::Number(right)) => Ok(Literal::Number(left + right)),
-                
+                (Literal::Int(left), Literal::Int(right)) => Ok(Literal::Int(left + right)),
+                (Literal::Int(left), Literal::Float(right)) => Ok(Literal::Float(*left as f64 + right)),
+                (Literal::Float(left), Literal::Int(right)) => Ok(Literal::Float(left + *right as f64)),
+                (Literal::Float(left), Literal::Float(right)) => Ok(Literal::Float(left + right)),
                 (Literal::String(left), Literal::String(right)) => Ok(Literal::String(format!("{}{}", left, right))),
                 (Literal::String(left), _) => Ok(Literal::String(format!("{}{}", left, right))),
                 (_, Literal::String(right)) => Ok(Literal::String(format!("{}{}", left, right))),
@@ -403,20 +396,31 @@ fn apply_op(left: MutRc<Literal>, op: &Token, right: MutRc<Literal>) -> Result<L
         },
         Minus => {
             match (&left, &right) {
-                (Literal::Number(left), Literal::Number(right)) => Ok(Literal::Number(left - right)),
+                (Literal::Int(left), Literal::Int(right)) => Ok(Literal::Int(left - right)),
+                (Literal::Int(left), Literal::Float(right)) => Ok(Literal::Float(*left as f64 - right)),
+                (Literal::Float(left), Literal::Int(right)) => Ok(Literal::Float(left - *right as f64)),
+                (Literal::Float(left), Literal::Float(right)) => Ok(Literal::Float(left - right)),
                 _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
             }
         },
         Times => {
             match (&left, &right) {
-                (Literal::Number(left), Literal::Number(right)) => Ok(Literal::Number(left * right)),
+                (Literal::Int(left), Literal::Int(right)) => Ok(Literal::Int(left * right)),
+                (Literal::Int(left), Literal::Float(right)) => Ok(Literal::Float(*left as f64 + right)),
+                (Literal::Float(left), Literal::Int(right)) => Ok(Literal::Float(left * *right as f64)),
+                (Literal::Float(left), Literal::Float(right)) => Ok(Literal::Float(left * right)),
                 _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
             }
         },
         Div => {
             match (&left, &right) {
-                (Literal::Number(left), Literal::Number(right)) if *right != 0 => Ok(Literal::Number(left / right)),
-                (Literal::Number(_), Literal::Number(right)) if *right == 0 => Err(InterpreterError::DivisionByZero(op.clone())),
+                (_, Literal::Int(right)) if *right == 0 => Err(InterpreterError::DivisionByZero(op.clone())),
+                (_, Literal::Float(right)) if *right == 0.0 => Err(InterpreterError::DivisionByZero(op.clone())),
+                
+                (Literal::Int(left), Literal::Int(right)) => Ok(Literal::Int(left / right)),
+                (Literal::Int(left), Literal::Float(right)) => Ok(Literal::Float(*left as f64 / right)),
+                (Literal::Float(left), Literal::Int(right)) => Ok(Literal::Float(left / *right as f64)),
+                (Literal::Float(left), Literal::Float(right)) => Ok(Literal::Float(left / right)),
                 _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
             }
         },
@@ -426,7 +430,7 @@ fn apply_op(left: MutRc<Literal>, op: &Token, right: MutRc<Literal>) -> Result<L
                 (Literal::False, Literal::True) => Ok(Literal::False),
                 (Literal::True, Literal::False) => Ok(Literal::False),
                 (Literal::False, Literal::False) => Ok(Literal::False),
-                (Literal::Number(left), Literal::Number(right)) => Ok(Literal::Number(left & right)),
+                (Literal::Int(left), Literal::Int(right)) => Ok(Literal::Int(left & right)),
                 _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
             }
         },
@@ -436,7 +440,7 @@ fn apply_op(left: MutRc<Literal>, op: &Token, right: MutRc<Literal>) -> Result<L
                 (Literal::False, Literal::True) => Ok(Literal::True),
                 (Literal::True, Literal::False) => Ok(Literal::True),
                 (Literal::False, Literal::False) => Ok(Literal::False),
-                (Literal::Number(left), Literal::Number(right)) => Ok(Literal::Number(left | right)),
+                (Literal::Int(left), Literal::Int(right)) => Ok(Literal::Int(left | right)),
                 _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
             }
         },
@@ -446,31 +450,43 @@ fn apply_op(left: MutRc<Literal>, op: &Token, right: MutRc<Literal>) -> Result<L
                 (Literal::False, Literal::True) => Ok(Literal::True),
                 (Literal::True, Literal::False) => Ok(Literal::True),
                 (Literal::False, Literal::False) => Ok(Literal::False),
-                (Literal::Number(left), Literal::Number(right)) => Ok(Literal::Number(left ^ right)),
+                (Literal::Int(left), Literal::Int(right)) => Ok(Literal::Int(left ^ right)),
                 _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
             }
         },
         LessThan => {
             match (&left, &right) {
-                (Literal::Number(left), Literal::Number(right)) => Ok((left < right).into()),
+                (Literal::Int(left), Literal::Int(right)) => Ok((left < right).into()),
+                (Literal::Int(left), Literal::Float(right)) => Ok(((*left as f64) < *right).into()),
+                (Literal::Float(left), Literal::Int(right)) => Ok((*left < (*right as f64)).into()),
+                (Literal::Float(left), Literal::Float(right)) => Ok((left < right).into()),
                 _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
             }
         },
         GreaterThan => {
             match (&left, &right) {
-                (Literal::Number(left), Literal::Number(right)) => Ok((left > right).into()),
+                (Literal::Int(left), Literal::Int(right)) => Ok((left > right).into()),
+                (Literal::Int(left), Literal::Float(right)) => Ok(((*left as f64) > *right).into()),
+                (Literal::Float(left), Literal::Int(right)) => Ok((*left > (*right as f64)).into()),
+                (Literal::Float(left), Literal::Float(right)) => Ok((left > right).into()),
                 _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
             }
         },
         LessOrEqual => {
             match (&left, &right) {
-                (Literal::Number(left), Literal::Number(right)) => Ok((left <= right).into()),
+                (Literal::Int(left), Literal::Int(right)) => Ok((left <= right).into()),
+                (Literal::Int(left), Literal::Float(right)) => Ok(((*left as f64) <= *right).into()),
+                (Literal::Float(left), Literal::Int(right)) => Ok((*left <= (*right as f64)).into()),
+                (Literal::Float(left), Literal::Float(right)) => Ok((left <= right).into()),
                 _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
             }
         },
         GreaterOrEqual => {
             match (&left, &right) {
-                (Literal::Number(left), Literal::Number(right)) => Ok((left >= right).into()),
+                (Literal::Int(left), Literal::Int(right)) => Ok((left >= right).into()),
+                (Literal::Int(left), Literal::Float(right)) => Ok(((*left as f64) >= *right).into()),
+                (Literal::Float(left), Literal::Int(right)) => Ok((*left >= (*right as f64)).into()),
+                (Literal::Float(left), Literal::Float(right)) => Ok((left >= right).into()),
                 _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
             }
         },
@@ -543,19 +559,14 @@ fn exec_var_decl(context: &mut InterpreterContext, decls: &Vec<(Token, Option<Li
 
 fn exec_list_instantiation(context: &mut InterpreterContext, tok: &Token, capacity_expr: &Expr, init_exprs: &Vec<Expr>) -> Result<MutRc<Literal>, InterpreterError> {
     let capacity = match *context.eval(capacity_expr)?.borrow() {
-        Literal::String(_) => return Err(InterpreterError::TypeError(tok.clone(), "String cannot be used as a list".to_string())),
-        Literal::Number(num) => {
+        Literal::Int(num) => {
             if num < 0 {
                 return Err(InterpreterError::ValueError(tok.clone(), "Number cannot be negative".to_string()));
             }
 
             num as usize
         },
-        Literal::True => return Err(InterpreterError::TypeError(tok.clone(), "Bool cannot be used as a list".to_string())),
-        Literal::False => return Err(InterpreterError::TypeError(tok.clone(), "Bool cannot be used as a list".to_string())),
-        Literal::Unit => return Err(InterpreterError::TypeError(tok.clone(), "Unit cannot be used as a list".to_string())),
-        Literal::List(_) => return Err(InterpreterError::TypeError(tok.clone(), "List cannot be used as a list".to_string())),
-        Literal::RecordInstance(_, _) => return Err(InterpreterError::TypeError(tok.clone(), "Record instance cannot be used as a list".to_string())),
+        ref lit => return Err(InterpreterError::TypeError(tok.clone(), format!("{} cannot be used as a list", lit.get_type()))),
     };
 
     let mut value = Vec::with_capacity(capacity);
@@ -568,7 +579,7 @@ fn exec_list_instantiation(context: &mut InterpreterContext, tok: &Token, capaci
 
     value.extend(init_lits);
     for _ in 0..(capacity - init_exprs.len()) {
-        value.push(mut_rc(Literal::Number(0)));
+        value.push(mut_rc(Literal::Int(0)));
     }
     
     Ok(mut_rc(Literal::List(value)))

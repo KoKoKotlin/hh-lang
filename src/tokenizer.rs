@@ -5,7 +5,8 @@ use std::{fmt::{Debug, Display}, str::Chars};
 pub enum TokenKind {
     Ident,
     String,
-    Number,
+    Int,
+    Float,
 
     // single symbol tokens
     Equals,
@@ -151,7 +152,7 @@ impl Token {
 impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.kind {
-            TokenKind::Ident | TokenKind::String | TokenKind::Number => write!(f, "{}({})", self.kind, self.symbols),
+            TokenKind::Ident | TokenKind::String | TokenKind::Int | TokenKind::Float => write!(f, "{}({})", self.kind, self.symbols),
             _ => write!(f, "{}", self.kind)
         }
     }
@@ -194,14 +195,113 @@ fn comment(char_iter: Chars) -> (usize, Option<TokenKind>) {
     (0, None)
 }
 
-fn number(char_iter: Chars) -> (usize, Option<TokenKind>) {
-    for (idx, char) in char_iter.enumerate() {
-        if !char.is_numeric() {
-            return (idx, Some(TokenKind::Number));
+#[derive(Debug)]
+enum NumberParseMode {
+    Bin,
+    Oct,
+    DecOrFloat,
+    Hex,
+    None,
+}
+
+fn get_number_parse_mode(char_iter: &mut Chars) -> (NumberParseMode, usize, bool) {
+    let first = char_iter.next();
+    let second = char_iter.next();
+
+    if let Some(first) = first {
+        if let Some(second) = second {
+            return match (first, second) {
+                ('0', 'b') => (NumberParseMode::Bin, 2, false),
+                ('0', 'c') => (NumberParseMode::Oct, 2, false),
+                ('0', 'x') => (NumberParseMode::Hex, 2, false),
+                (c1, c2) => {
+                    if c1.is_numeric() && c2.is_numeric() {
+                        (NumberParseMode::DecOrFloat, 2, false)
+                    } else if c1.is_numeric() && c2 == '.' {
+                        (NumberParseMode::DecOrFloat, 2, true)
+                    } else if c1 == '.' && c2.is_numeric() {
+                        (NumberParseMode::DecOrFloat, 2, true)
+                    } else if c1.is_numeric() {
+                        (NumberParseMode::DecOrFloat, 1, false)
+                    } else {
+                        (NumberParseMode::None, 0, false)
+                    }
+                },
+            };
+        } else {
+            return (if first.is_numeric() { NumberParseMode::DecOrFloat } else { NumberParseMode::None }, 1, false);
         }
     }
-    
+
+    (NumberParseMode::None, 0, false)
+}
+
+fn bin(char_iter: &mut Chars) -> usize {
+    for (idx, c) in char_iter.enumerate() {
+        if c != '0' || c != '1' { return idx; }
+    } 
+    0
+}
+
+fn oct(char_iter: &mut Chars) -> usize {
+    for (idx, c) in char_iter.enumerate() {
+        if !c.is_numeric() || c == '8' || c == '9' { return idx; }
+    }
+    0
+}
+
+fn dec_or_float(char_iter: &mut Chars, point_in_prefix: bool) -> (usize, Option<TokenKind>) {
+    let mut point_present = point_in_prefix;
+
+    for (idx, c) in char_iter.enumerate() {
+        if !point_present && c == '.' {
+            point_present = true;
+            continue;
+        } else if point_present && c == '.' {
+            // for preventing a number like this: "."
+            return (idx, Some(TokenKind::Float));
+        }
+
+        if !c.is_numeric() { 
+            // for preventing a number like this: "."
+            return (idx, Some(if point_present { TokenKind::Float } else { TokenKind::Int })); 
+        }
+    }
     (0, None)
+}
+
+fn hex(char_iter: &mut Chars) -> usize {
+    for (idx, c) in char_iter.enumerate() {
+        if !c.is_numeric() && !['A', 'B', 'C', 'D', 'E', 'F'].contains(&c) { return idx; }
+    }
+    0
+}
+
+fn number(mut char_iter: Chars) -> (usize, Option<TokenKind>) {
+    let (parse_mode, skip, point_in_prefix) = get_number_parse_mode(&mut char_iter);
+    
+    match parse_mode {
+        NumberParseMode::Bin => { 
+            let tok_len = bin(&mut char_iter);
+            if tok_len == 0 { return (0, None); }
+            (skip + tok_len, Some(TokenKind::Int)) 
+        },
+        NumberParseMode::Oct => { 
+            let tok_len = oct(&mut char_iter);
+            if tok_len == 0 { return (0, None); }
+            (skip + tok_len, Some(TokenKind::Int)) 
+        },
+        NumberParseMode::DecOrFloat => { 
+            let (size, maybe_kind) = dec_or_float(&mut char_iter, point_in_prefix);
+            (skip + size, maybe_kind)
+        },
+        NumberParseMode::Hex => { 
+            let tok_len = hex(&mut char_iter);
+            if tok_len == 0 { return (0, None); }
+            (skip + tok_len, Some(TokenKind::Int)) 
+        },
+        NumberParseMode::None => (0, None),
+    }
 }
 
 fn string(char_iter: Chars) -> (usize, Option<TokenKind>) {
@@ -333,8 +433,8 @@ impl Tokenizer {
             rules: vec![
                 TokenizerRule { name: "Whitespace", rule: Box::new(whitespace) },
                 TokenizerRule { name: "Comment",    rule: Box::new(comment) },
-                TokenizerRule { name: "Operator",   rule: Box::new(operator) },
                 TokenizerRule { name: "Number",     rule: Box::new(number) },
+                TokenizerRule { name: "Operator",   rule: Box::new(operator) },
                 TokenizerRule { name: "String",     rule: Box::new(string) },
                 TokenizerRule { name: "Identifier", rule: Box::new(ident) },
             ],

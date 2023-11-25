@@ -1,4 +1,8 @@
+use std::num::ParseIntError;
+
 use crate::{tokenizer::{Tokenizer, TokenKind, Token}, ast::{Expr, Literal, Block, Statement, Program}, interpreter::mut_rc};
+
+type IntParser = Box<dyn Fn(&str) -> Result<i64, ParseIntError>>;
 
 pub struct Parser {
     tokenizer: Tokenizer,
@@ -390,7 +394,7 @@ impl Parser {
                 
                 return Ok(expr);
             },
-            Some(Number) | Some(True) | Some(False) | Some(String) => {
+            Some(Int) | Some(Float) | Some(True) | Some(False) | Some(String) => {
                 let lit = self.literal()?;
                 return Ok(Expr::Literal(mut_rc(lit)));
             },
@@ -426,7 +430,7 @@ impl Parser {
             },
             _ => {
                 let next = self.get();
-                consume_error(self, next.as_ref(), &[Number, String, Ident, OpeningParan]);
+                consume_error(self, next.as_ref(), &[Int, Float, String, Ident, OpeningParan]);
                 return Err(());
             },
         }
@@ -435,9 +439,25 @@ impl Parser {
     fn literal(&mut self) -> Result<Literal, ()> {
         use TokenKind::*;
 
-        let token = self.consume(&[Number, String, True, False]).ok_or(())?;
+        let int_parsers: Vec<IntParser> = vec![
+            Box::new(|s: &str| i64::from_str_radix(&s, 10)),
+            Box::new(|s: &str| i64::from_str_radix(&s.replace("0b", ""), 2)),
+            Box::new(|s: &str| i64::from_str_radix(&s.replace("0c", ""), 8)),
+            Box::new(|s: &str| i64::from_str_radix(&s.replace("0x", ""), 16)),
+        ];
+
+        let token = self.consume(&[Int, Float, String, True, False]).ok_or(())?;
         Ok(match token.kind {
-            Number => Literal::Number(token.symbols.parse::<i64>().unwrap()),
+            Int => {
+                let value = int_parsers
+                    .iter()
+                    .map(|parser| parser(&token.symbols))
+                    .find(|res| res.is_ok())
+                    .unwrap() // safe because the tokenizer only produces valid int strings that fit one parser 
+                    .unwrap();
+                Literal::Int(value)
+            },
+            Float => Literal::Float(token.symbols.parse::<f64>().unwrap()),
             String => Literal::String(token.symbols),
             True   => Literal::True,
             False  => Literal::False,
@@ -456,13 +476,6 @@ impl Parser {
 
         Ok(Expr::RecordInstantiation(record_name, exprs))        
     }
-
-    // fn unary(&mut self) -> Result<Expr, ()> {
-    //     let operator = self.consume(&UNARY_OPERATORS).ok_or(())?;
-    //     let operand = self.expr()?;
-
-    //     Ok(Expr::Unary(Unary { operator, operand: Box::new(operand) }))
-    // }
 
     fn peek(&mut self) -> Option<TokenKind> {
         self.look_ahead.as_ref().map(|t| t.kind)
