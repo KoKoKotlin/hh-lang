@@ -1,11 +1,59 @@
 
-record Point start
-    x
-    y
+record DynList start
+    list
+    capacity
+    current
 end
 
-var p1;
-p1 = new Point(0c11, 0c12);
-println p1;
-dbg p1.x;
-dbg p1.y;
+func dl_create init_cap start
+    return new DynList([init_cap](), init_cap, 0);
+end
+
+func dl_get dl idx start
+    var dl_list;
+    dl_list = dl.list;
+    return dl_list[idx];
+end
+
+func dl_assign dl idx val start
+    var dl_list;
+    dl_list = dl.list;
+    dl_list[idx] = val;
+end
+
+func dl_enlarge dl start
+    var new_cap, old_list, new_list, i;
+    new_cap = dl.capacity * 2;
+    old_list = dl.list;
+    new_list = [new_cap]();
+    
+    i = dl.capacity - 1;
+    while i >= 0 do
+        new_list[i] = old_list[i];
+        i = i - 1;
+    end
+
+    dl.capacity = new_cap;
+    dl.list = new_list;
+end
+
+func dl_push dl val start
+    var dl_list;
+    
+    # if the current list is too small double its size and copy the values over
+    if dl.current >= dl.capacity then
+        call dl_enlarge dl;
+    end
+
+    dl_list = dl.list;
+    dl_list[dl.current] = val;
+    dl.current = dl.current + 1;
+end
+
+func dl_pop dl start
+    var popped_val, dl_list;
+    dl_list = dl.list;
+    popped_val = dl_list[dl.current - 1];
+    dl.current = dl.current - 1;
+    return popped_val;
+end
