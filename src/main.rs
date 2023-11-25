@@ -9,7 +9,7 @@ mod parser;
 mod ast;
 mod interpreter;
 
-const SOURCE_FILE_PATH: &'static str = "main.hhl";
+const SOURCE_FILE_PATH: &'static str = "stdlib.hhl";
 
 fn load_source_code_file(path: &str) -> std::io::Result<String> {
     let mut file = File::open(path)?;
@@ -36,9 +36,9 @@ fn main() {
         match &err {
             Err(InterpreterError::VariableDoesNotExists(tok)) => {
                 println!("Err: {:?}\nContext:\n{}", err, parser.get_context(tok));
+                println!("Context: {:?}", context);
             }
-            _ => println!("Err: {:?}", err),
+            _ => {}
         }
-        println!("Context: {:?}", context);
     }
 }

@@ -46,7 +46,7 @@
 		},
 		"builtins": {
 			"name": "keyword.other.hhl",
-			"match": "\\b(println|print|dbg)\\b"
+			"match": "\\b(println|print|dbg|openfile|readfile|writefile|closefile)\\b"
 		},
 		"numbers": {
 			"name": "constant.numeric.hhl",

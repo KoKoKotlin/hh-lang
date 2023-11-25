@@ -1,0 +1,11 @@
+
+var data_file, text;
+data_file = readfile "README.md";
+println data_file;
+
+record Point start
+    x
+    y
+end
+
+writefile "test.txt", new Point(100, 120);

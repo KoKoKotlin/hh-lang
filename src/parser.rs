@@ -39,10 +39,13 @@ const MULITPLICATIVE_OPERATORS: [TokenKind; 2] = [
     TokenKind::Div,
 ];
 
-const BUILT_INS: [TokenKind; 3] = [
+const BUILT_INS: [TokenKind; 6] = [
     TokenKind::Print,
     TokenKind::Println,
     TokenKind::Dbg,
+    TokenKind::WriteFile,
+    TokenKind::ReadFile,
+    TokenKind::AppendFile,
 ];
 
 impl Parser {
@@ -97,28 +100,10 @@ impl Parser {
 
     fn built_in(&mut self) -> Result<Expr, ()> {
         use TokenKind::*;
+        let call_tok = self.consume(&BUILT_INS).ok_or(())?;
+        let args = self.expr_list(Some(Comma), Semicolon)?;
 
-        match self.peek() {
-            Some(Print) => {
-                let print_tok = self.consume(&[Print]).ok_or(())?;
-                let args = self.expr_list(Some(Comma), Semicolon)?;
-
-                return Ok(Expr::BuiltInCall(print_tok, args));
-            },
-            Some(Println) => {
-                let print_tok = self.consume(&[Println]).ok_or(())?;
-                let args = self.expr_list(Some(Comma), Semicolon)?;
-
-                return Ok(Expr::BuiltInCall(print_tok, args));
-            },
-            Some(Dbg) => {
-                let dbg = self.consume(&[Dbg]).ok_or(())?;
-                let args = self.expr_list(Some(Comma), Semicolon)?;
-
-                return Ok(Expr::BuiltInCall(dbg, args));
-            }
-            _ => unreachable!(),
-        }
+        return Ok(Expr::BuiltInCall(call_tok, args));
     }
 
     fn fi(&mut self) -> Result<Statement, ()> {

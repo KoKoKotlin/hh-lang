@@ -1,4 +1,4 @@
-use std::{rc::Rc, cell::RefCell, borrow::BorrowMut};
+use std::{rc::Rc, cell::RefCell, borrow::BorrowMut, fs};
 use crate::{ast::{Program, Literal, Block, Statement, Expr}, tokenizer::{Token, TokenKind}};
 
 pub type MutRc<T> = Rc<RefCell<T>>;
@@ -138,6 +138,7 @@ pub enum InterpreterError {
     RecordNotDeclared(Token),
     RecordFieldCount(Token),
     RecordFieldDoesNotExist(Token, Token),
+    BuiltInError(Token, String),
 }
 
 pub type InterpreterResult = Result<(), InterpreterError>;
@@ -620,7 +621,37 @@ fn exec_built_in(context: &mut InterpreterContext, tok: &Token, args: &Vec<Expr>
                 print!("{:?}", *arg.borrow());
             }
             println!();
-        }
+        },
+        ReadFile => {
+            if args.len() != 1 {
+                return Err(InterpreterError::CallArgumentCount(tok.clone()));
+            }
+            let arg = context.eval(&args[0])?.borrow().clone();
+            let file_path = match &arg {
+                Literal::String(str) => str,
+                _ => return Err(InterpreterError::ValueError(tok.clone(), format!("File path must be String not {}!", arg.get_type()))),
+            };
+
+            let text = fs::read_to_string(file_path)
+                .map_err(|err| InterpreterError::BuiltInError(tok.clone(), format!("{}", err)))?;
+            
+            return Ok(mut_rc(Literal::String(text)));
+        },
+        WriteFile => {
+            if args.len() != 2 {
+                return Err(InterpreterError::CallArgumentCount(tok.clone()));
+            }
+            let file_name = context.eval(&args[0])?.borrow().clone();
+            let content = context.eval(&args[1])?.borrow().clone();
+            
+            let file_path = match &file_name {
+                Literal::String(str) => str,
+                _ => return Err(InterpreterError::ValueError(tok.clone(), format!("File path must be String not {}!", file_name.get_type()))),
+            };
+            fs::write(file_path, content.to_string())
+                .map_err(|err| InterpreterError::BuiltInError(tok.clone(), format!("{}", err)))?;
+        },
+        AppendFile => todo!(),
         _ => unimplemented!("BuiltIn {:?} not implemented yet", tok.kind),
     }
 

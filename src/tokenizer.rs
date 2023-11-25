@@ -55,6 +55,9 @@ pub enum TokenKind {
     Print,
     Println,
     Dbg,
+    ReadFile,
+    WriteFile,
+    AppendFile,
 }
 
 impl Display for TokenKind {
@@ -106,6 +109,9 @@ impl Display for TokenKind {
             New => "new",
             Dbg => "Built-In Dbg",
             Return => "return",
+            ReadFile => "Built-In readfile",
+            WriteFile => "Built-In writefile",
+            AppendFile => "Built-In appendfile",
         })
     }
 }
@@ -293,6 +299,9 @@ pub fn parse_ident(slice: &str) -> TokenKind {
         "new" => TokenKind::New,
         "dbg" => TokenKind::Dbg,
         "return" => TokenKind::Return,
+        "readfile" => TokenKind::ReadFile,
+        "writefile" => TokenKind::WriteFile,
+        "appendfile" => TokenKind::AppendFile,
         _ => TokenKind::Ident,
     }
 }
