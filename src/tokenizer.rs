@@ -67,7 +67,8 @@ impl Display for TokenKind {
 
         write!(f, "{}", match *self {
             Ident => "Ident",
-            Number => "Number",
+            Int => "Int",
+            Float => "Float",
             String => "String",
             Equals => "=",
             Plus => "+",

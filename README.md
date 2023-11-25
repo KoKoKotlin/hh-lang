@@ -49,5 +49,4 @@ BuiltIn     => "print" | "println" | "dbg" | "readfile" | "writefile" | "appendf
 
 ### BUGS:
   - when passing list literals behind idents in func argument list, then the parser thinks the len expr of the list is an indexing of the ident
-  - bug in error reporting in the parser when multiple numbers are next to each other
 
