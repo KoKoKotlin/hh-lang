@@ -2,7 +2,7 @@ use std::{fs::File, io::Read};
 
 use parser::Parser;
 
-use crate::interpreter::{interprete_ast, InterpreterError};
+use crate::interpreter::interprete_ast;
 
 mod tokenizer;
 mod parser;

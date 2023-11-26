@@ -43,13 +43,14 @@ const MULITPLICATIVE_OPERATORS: [TokenKind; 2] = [
     TokenKind::Div,
 ];
 
-const BUILT_INS: [TokenKind; 6] = [
+const BUILT_INS: [TokenKind; 7] = [
     TokenKind::Print,
     TokenKind::Println,
     TokenKind::Dbg,
     TokenKind::WriteFile,
     TokenKind::ReadFile,
     TokenKind::AppendFile,
+    TokenKind::Len,
 ];
 
 impl Parser {
@@ -197,7 +198,7 @@ impl Parser {
         loop {
             let ident = self.consume(&[Ident]).ok_or(())?;
             self.consume(&[Equals]).ok_or(())?;
-            let value = self.literal()?;
+            let value = self.primary()?;
 
             let_bindings.push((ident, value));
 
@@ -222,7 +223,7 @@ impl Parser {
             let literal = match self.look_ahead.as_ref() {
                 Some(token) => if token.kind == Equals {
                     self.consume(&[Equals]).ok_or(())?;
-                    let literal = self.literal()?;
+                    let literal = self.primary()?;
                     Some(literal)
                 } else {
                     None
@@ -395,7 +396,7 @@ impl Parser {
                 return Ok(expr);
             },
             Some(Int) | Some(Float) | Some(Bool) | Some(String) | Some(Char) => {
-                let lit = self.literal()?;
+                let lit = self.primary()?;
                 return Ok(Expr::Literal(mut_rc(lit)));
             },
             Some(Ident) => {
@@ -436,7 +437,7 @@ impl Parser {
         }
     }
 
-    fn literal(&mut self) -> Result<Literal, ()> {
+    fn primary(&mut self) -> Result<Literal, ()> {
         use TokenKind::*;
 
         let int_parsers: Vec<IntParser> = vec![
@@ -460,7 +461,7 @@ impl Parser {
             Float => Literal::Float(token.symbols.parse::<f64>().unwrap()),
             String => Literal::String(token.symbols.parse::<std::string::String>().unwrap()),
             Bool => Literal::Bool(token.symbols.parse::<bool>().unwrap()),
-            Char => Literal::Char(token.symbols.parse::<char>().unwrap()), 
+            Char => Literal::Char(token.symbols.parse::<char>().unwrap()),
             _ => unreachable!(),
         })
     }

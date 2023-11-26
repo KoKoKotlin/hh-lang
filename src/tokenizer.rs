@@ -59,6 +59,7 @@ pub enum TokenKind {
     ReadFile,
     WriteFile,
     AppendFile,
+    Len,
 }
 
 impl Display for TokenKind {
@@ -114,6 +115,7 @@ impl Display for TokenKind {
             ReadFile => "Built-In readfile",
             WriteFile => "Built-In writefile",
             AppendFile => "Built-In appendfile",
+            Len => "Built-In len",
         })
     }
 }
@@ -400,6 +402,7 @@ pub fn parse_ident(slice: &str) -> TokenKind {
         "readfile" => TokenKind::ReadFile,
         "writefile" => TokenKind::WriteFile,
         "appendfile" => TokenKind::AppendFile,
+        "len" => TokenKind::Len,
         _ => TokenKind::Ident,
     }
 }

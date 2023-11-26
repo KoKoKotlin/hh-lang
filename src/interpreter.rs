@@ -245,6 +245,13 @@ impl InterpreterContext {
             }
 
             match lit {
+                Literal::String(s) => {
+                    if idx as usize >= s.len() {
+                        return Err(InterpreterError::IndexOutOfBounds(tok.clone()));
+                    }
+
+                    return Ok(mut_rc(s.chars().nth(idx as usize).unwrap().into()));
+                },
                 Literal::List(values) => {
                     if idx as usize >= values.len() {
                         return Err(InterpreterError::IndexOutOfBounds(tok.clone()));
@@ -636,6 +643,15 @@ fn exec_while(context: &mut InterpreterContext, cond_expr: &Expr, block: &Block)
     Ok(())
 }
 
+fn get_args(context: &mut InterpreterContext, tok: &Token, expected_count: usize, args: &Vec<Expr>) -> Result<Vec<MutRc<Literal>>, InterpreterError> {
+    if args.len() != expected_count {
+        return Err(InterpreterError::CallArgumentCount(tok.clone()));
+    }
+
+    let exprs: Result<Vec<MutRc<Literal>>, InterpreterError> = args.iter().map(|arg| context.eval(arg)).collect();
+    exprs
+}
+
 fn exec_built_in(context: &mut InterpreterContext, tok: &Token, args: &Vec<Expr>) -> Result<MutRc<Literal>, InterpreterError> {
     use TokenKind::*;
 
@@ -661,11 +677,10 @@ fn exec_built_in(context: &mut InterpreterContext, tok: &Token, args: &Vec<Expr>
             println!();
         },
         ReadFile => {
-            if args.len() != 1 {
-                return Err(InterpreterError::CallArgumentCount(tok.clone()));
-            }
-            let arg = context.eval(&args[0])?.borrow().clone();
-            let file_path = match &arg {
+            let args = get_args(context, tok, 1, args)?;
+            let arg = args[0].borrow().clone();
+
+            let file_path = match arg {
                 Literal::String(str) => str,
                 _ => return Err(InterpreterError::ValueError(tok.clone(), format!("File path must be String not {}!", arg.get_type()))),
             };
@@ -676,11 +691,9 @@ fn exec_built_in(context: &mut InterpreterContext, tok: &Token, args: &Vec<Expr>
             return Ok(mut_rc(Literal::String(text)));
         },
         WriteFile => {
-            if args.len() != 2 {
-                return Err(InterpreterError::CallArgumentCount(tok.clone()));
-            }
-            let file_name = context.eval(&args[0])?.borrow().clone();
-            let content = context.eval(&args[1])?.borrow().clone();
+            let args = get_args(context, tok, 2, args)?;
+            let file_name = args[0].borrow().clone();
+            let content = args[1].borrow().clone();
             
             let file_path = match &file_name {
                 Literal::String(str) => str,
@@ -690,6 +703,15 @@ fn exec_built_in(context: &mut InterpreterContext, tok: &Token, args: &Vec<Expr>
                 .map_err(|err| InterpreterError::BuiltInError(tok.clone(), format!("{}", err)))?;
         },
         AppendFile => todo!(),
+        Len => {
+            let args = get_args(context, tok, 1, args)?;
+            let container = args[0].borrow().clone();
+            return Ok(mut_rc((match container {
+                Literal::String(s) => s.len(),
+                Literal::List(l) => l.len(),
+                lit => return Err(InterpreterError::ValueError(tok.clone(), format!("Can't get length of {}!", lit.get_type()))),
+            } as i64).into()));
+        }
         _ => unimplemented!("BuiltIn {:?} not implemented yet", tok.kind),
     }
 
