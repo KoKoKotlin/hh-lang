@@ -403,8 +403,7 @@ fn apply_unary(op: &Token, operand: MutRc<Literal>) -> Result<Literal, Interpret
             _ => Err(InterpreterError::UndefinedUnaryOperation(op.clone(), operand.clone())),
         },
         Bang => match &operand {
-            Literal::True => Ok(Literal::False),
-            Literal::False => Ok(Literal::True),
+            Literal::Bool(val) => Ok(Literal::Bool(!val)),
             _ => Err(InterpreterError::UndefinedUnaryOperation(op.clone(), operand.clone())),
         },
         _ => unimplemented!(),
@@ -421,31 +420,31 @@ fn apply_op(left: MutRc<Literal>, op: &Token, right: MutRc<Literal>) -> Result<L
     return match op.kind {
         Plus => {
             match (&left, &right) {
-                (Literal::Int(left), Literal::Int(right)) => Ok(Literal::Int(left + right)),
-                (Literal::Int(left), Literal::Float(right)) => Ok(Literal::Float(*left as f64 + right)),
-                (Literal::Float(left), Literal::Int(right)) => Ok(Literal::Float(left + *right as f64)),
-                (Literal::Float(left), Literal::Float(right)) => Ok(Literal::Float(left + right)),
-                (Literal::String(left), Literal::String(right)) => Ok(Literal::String(format!("{}{}", left, right))),
-                (Literal::String(left), _) => Ok(Literal::String(format!("{}{}", left, right))),
-                (_, Literal::String(right)) => Ok(Literal::String(format!("{}{}", left, right))),
+                (Literal::Int(left), Literal::Int(right)) => Ok((left + right).into()),
+                (Literal::Int(left), Literal::Float(right)) => Ok((*left as f64 + right).into()),
+                (Literal::Float(left), Literal::Int(right)) => Ok((left + *right as f64).into()),
+                (Literal::Float(left), Literal::Float(right)) => Ok((left + right).into()),
+                (Literal::String(left), Literal::String(right)) => Ok(format!("{}{}", left, right).into()),
+                (Literal::String(left), _) => Ok(format!("{}{}", left, right).into()),
+                (_, Literal::String(right)) => Ok(format!("{}{}", left, right).into()),
                 _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
             }
         },
         Minus => {
             match (&left, &right) {
-                (Literal::Int(left), Literal::Int(right)) => Ok(Literal::Int(left - right)),
-                (Literal::Int(left), Literal::Float(right)) => Ok(Literal::Float(*left as f64 - right)),
-                (Literal::Float(left), Literal::Int(right)) => Ok(Literal::Float(left - *right as f64)),
-                (Literal::Float(left), Literal::Float(right)) => Ok(Literal::Float(left - right)),
+                (Literal::Int(left), Literal::Int(right)) => Ok((left - right).into()),
+                (Literal::Int(left), Literal::Float(right)) => Ok((*left as f64 - right).into()),
+                (Literal::Float(left), Literal::Int(right)) => Ok((left - *right as f64).into()),
+                (Literal::Float(left), Literal::Float(right)) => Ok((left - right).into()),
                 _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
             }
         },
         Times => {
             match (&left, &right) {
-                (Literal::Int(left), Literal::Int(right)) => Ok(Literal::Int(left * right)),
-                (Literal::Int(left), Literal::Float(right)) => Ok(Literal::Float(*left as f64 + right)),
-                (Literal::Float(left), Literal::Int(right)) => Ok(Literal::Float(left * *right as f64)),
-                (Literal::Float(left), Literal::Float(right)) => Ok(Literal::Float(left * right)),
+                (Literal::Int(left), Literal::Int(right)) => Ok((left * right).into()),
+                (Literal::Int(left), Literal::Float(right)) => Ok((*left as f64 + right).into()),
+                (Literal::Float(left), Literal::Int(right)) => Ok((left * *right as f64).into()),
+                (Literal::Float(left), Literal::Float(right)) => Ok((left * right).into()),
                 _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
             }
         },
@@ -454,39 +453,30 @@ fn apply_op(left: MutRc<Literal>, op: &Token, right: MutRc<Literal>) -> Result<L
                 (_, Literal::Int(right)) if *right == 0 => Err(InterpreterError::DivisionByZero(op.clone())),
                 (_, Literal::Float(right)) if *right == 0.0 => Err(InterpreterError::DivisionByZero(op.clone())),
                 
-                (Literal::Int(left), Literal::Int(right)) => Ok(Literal::Int(left / right)),
-                (Literal::Int(left), Literal::Float(right)) => Ok(Literal::Float(*left as f64 / right)),
-                (Literal::Float(left), Literal::Int(right)) => Ok(Literal::Float(left / *right as f64)),
-                (Literal::Float(left), Literal::Float(right)) => Ok(Literal::Float(left / right)),
+                (Literal::Int(left), Literal::Int(right)) => Ok((left / right).into()),
+                (Literal::Int(left), Literal::Float(right)) => Ok((*left as f64 / right).into()),
+                (Literal::Float(left), Literal::Int(right)) => Ok((left / *right as f64).into()),
+                (Literal::Float(left), Literal::Float(right)) => Ok((left / right).into()),
                 _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
             }
         },
         And => {
             match (&left, &right) {
-                (Literal::True, Literal::True) => Ok(Literal::True),
-                (Literal::False, Literal::True) => Ok(Literal::False),
-                (Literal::True, Literal::False) => Ok(Literal::False),
-                (Literal::False, Literal::False) => Ok(Literal::False),
+                (Literal::Bool(val1), Literal::Bool(val2)) => Ok((*val1 && *val2).into()),
                 (Literal::Int(left), Literal::Int(right)) => Ok(Literal::Int(left & right)),
                 _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
             }
         },
         Or => {
             match (&left, &right) {
-                (Literal::True, Literal::True) => Ok(Literal::True),
-                (Literal::False, Literal::True) => Ok(Literal::True),
-                (Literal::True, Literal::False) => Ok(Literal::True),
-                (Literal::False, Literal::False) => Ok(Literal::False),
+                (Literal::Bool(val1), Literal::Bool(val2)) => Ok((*val1 || *val2).into()),
                 (Literal::Int(left), Literal::Int(right)) => Ok(Literal::Int(left | right)),
                 _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
             }
         },
         Xor => {
             match (&left, &right) {
-                (Literal::True, Literal::True) => Ok(Literal::False),
-                (Literal::False, Literal::True) => Ok(Literal::True),
-                (Literal::True, Literal::False) => Ok(Literal::True),
-                (Literal::False, Literal::False) => Ok(Literal::False),
+                (Literal::Bool(val1), Literal::Bool(val2)) => Ok((*val1 ^ *val2).into()),
                 (Literal::Int(left), Literal::Int(right)) => Ok(Literal::Int(left ^ right)),
                 _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
             }

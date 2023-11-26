@@ -394,7 +394,7 @@ impl Parser {
                 
                 return Ok(expr);
             },
-            Some(Int) | Some(Float) | Some(True) | Some(False) | Some(String) => {
+            Some(Int) | Some(Float) | Some(Bool) | Some(String) | Some(Char) => {
                 let lit = self.literal()?;
                 return Ok(Expr::Literal(mut_rc(lit)));
             },
@@ -446,7 +446,7 @@ impl Parser {
             Box::new(|s: &str| i64::from_str_radix(&s.replace("0x", ""), 16)),
         ];
 
-        let token = self.consume(&[Int, Float, String, True, False]).ok_or(())?;
+        let token = self.consume(&[Int, Float, String, Bool, Char]).ok_or(())?;
         Ok(match token.kind {
             Int => {
                 let value = int_parsers
@@ -458,9 +458,9 @@ impl Parser {
                 Literal::Int(value)
             },
             Float => Literal::Float(token.symbols.parse::<f64>().unwrap()),
-            String => Literal::String(token.symbols),
-            True   => Literal::True,
-            False  => Literal::False,
+            String => Literal::String(token.symbols.parse::<std::string::String>().unwrap()),
+            Bool => Literal::Bool(token.symbols.parse::<bool>().unwrap()),
+            Char => Literal::Char(token.symbols.parse::<char>().unwrap()), 
             _ => unreachable!(),
         })
     }

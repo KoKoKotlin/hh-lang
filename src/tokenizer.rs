@@ -7,6 +7,8 @@ pub enum TokenKind {
     String,
     Int,
     Float,
+    Char,
+    Bool,
 
     // single symbol tokens
     Equals,
@@ -43,8 +45,6 @@ pub enum TokenKind {
     While,
     Do,
     Then,
-    True,
-    False,
     Let,
     Var,
     Call,
@@ -70,6 +70,8 @@ impl Display for TokenKind {
             Int => "Int",
             Float => "Float",
             String => "String",
+            Char => "Char",
+            Bool => "Bool",
             Equals => "=",
             Plus => "+",
             Minus => "-",
@@ -100,8 +102,6 @@ impl Display for TokenKind {
             While => "while",
             Do => "do",
             Then => "then",
-            True => "true",
-            False => "false",
             Let => "let",
             Var => "var",
             Print => "Built-In Print",
@@ -388,8 +388,6 @@ pub fn parse_ident(slice: &str) -> TokenKind {
         "while" => TokenKind::While,
         "do" => TokenKind::Do,
         "then" => TokenKind::Then,
-        "true" => TokenKind::True,
-        "false" => TokenKind::False,
         "let" => TokenKind::Let,
         "var" => TokenKind::Var,
         "print" => TokenKind::Print,
@@ -424,6 +422,31 @@ fn ident(char_iter: Chars) -> (usize, Option<TokenKind>) {
     (buf.len(), Some(parse_ident(&buf)))
 }
 
+fn char_(char_iter: Chars) -> (usize, Option<TokenKind>) {
+    for (idx, c) in char_iter.enumerate() {
+        if idx == 0 && c != '\'' { return (0, None); }
+        else if idx == 2 && c == '\'' { return (3, Some(TokenKind::Char)); }
+        else if idx > 2 { return (0, None) };
+    }
+
+    (0, None)
+} 
+
+fn bool_(char_iter: Chars) -> (usize, Option<TokenKind>) {
+    let mut buf = String::new();
+    for c in char_iter {
+        buf.push(c);
+
+        if buf.len() > 5 || &buf == "true" || &buf == "false" { break; }
+    }
+
+    if buf.parse::<bool>().is_ok() {
+        (buf.len(), Some(TokenKind::Bool))
+    } else {
+        (0, None)
+    }
+}
+
 impl Tokenizer {
     pub fn new(source_code: String) -> Self {
         Self {
@@ -435,6 +458,8 @@ impl Tokenizer {
                 TokenizerRule { name: "Comment",    rule: Box::new(comment) },
                 TokenizerRule { name: "Number",     rule: Box::new(number) },
                 TokenizerRule { name: "Operator",   rule: Box::new(operator) },
+                TokenizerRule { name: "Char",       rule: Box::new(char_) },
+                TokenizerRule { name: "Bool",       rule: Box::new(bool_) },
                 TokenizerRule { name: "String",     rule: Box::new(string) },
                 TokenizerRule { name: "Identifier", rule: Box::new(ident) },
             ],
@@ -471,7 +496,7 @@ impl Tokenizer {
 
             if len != 0 {
                 if let Some(kind) = kind {
-                    let (start, end) = if kind == TokenKind::String {
+                    let (start, end) = if kind == TokenKind::String || kind == TokenKind::Char {
                         (self.current_pointer+1, self.current_pointer+len-1) 
                     } else {
                         (self.current_pointer, self.current_pointer+len)

@@ -31,7 +31,7 @@ CompExpr    => AddExpr { LOGIC_OP AddExpr }
 AddExpr     => MultExpr { ADD_OP MultExpr }
 MultExpr    => Factor { MULT_OP Factor }
 Factor      => [ UNARY_OP ] IDENT { "." IDENT } | IDENT "[" Expr "]" | Literal | "(" Expr ")"
-Literal     => INT | FLOAT | STRING | BOOL | RecordInstance | List
+Literal     => INT | FLOAT | STRING | BOOL | CHAR | RecordInstance | List
 BuiltIn     => "print" | "println" | "dbg" | "readfile" | "writefile" | "appendfile"
 ```
 

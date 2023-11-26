@@ -41,8 +41,8 @@ pub enum Literal {
     String(String),
     Int(i64),
     Float(f64),
-    True,
-    False,
+    Bool(bool),
+    Char(char),
     List(Vec<MutRc<Literal>>),
     RecordInstance(Token, Vec<MutRc<Literal>>),
     Unit,
@@ -61,8 +61,8 @@ impl Literal {
             Literal::Int(num) => *num != 0,
             Literal::Float(num) => *num != 0.0,
             Literal::List(values) => values.len() != 0, 
-            Literal::True => true,
-            Literal::False => false,
+            Literal::Bool(val) => *val,
+            Literal::Char(c) => *c != '\0',
             Literal::RecordInstance(_, _) => true,
             Literal::Unit => false,
         }
@@ -73,8 +73,8 @@ impl Literal {
             Literal::String(str) => str.clone(),
             Literal::Int(num) => num.to_string(),
             Literal::Float(num) => num.to_string(),
-            Literal::True => "true".to_string(),
-            Literal::False => "false".to_string(),
+            Literal::Bool(val) => val.to_string(),
+            Literal::Char(c) => c.to_string(),
             Literal::Unit => "()".to_string(),
             Literal::List(values) => {
                 let mut buf = String::new();
@@ -104,8 +104,8 @@ impl Literal {
             Literal::String(_) => "String",
             Literal::Int(_) => "Int",
             Literal::Float(_) => "Float",
-            Literal::True => "Bool",
-            Literal::False => "Bool",
+            Literal::Bool(_) => "Bool",
+            Literal::Char(_) => "Char",
             Literal::List(_) => "List",
             Literal::RecordInstance(_, _) => "RecordInstance",
             Literal::Unit => "Unit",
@@ -115,6 +115,31 @@ impl Literal {
 
 impl From<bool> for Literal {
     fn from(value: bool) -> Self {
-        if value { Self::True } else { Self::False }
+        Literal::Bool(value)
+    }
+}
+
+impl From<i64> for Literal {
+    fn from(value: i64) -> Self {
+        Literal::Int(value)
+    }
+}
+
+
+impl From<f64> for Literal {
+    fn from(value: f64) -> Self {
+        Literal::Float(value)
+    }
+}
+
+impl From<String> for Literal {
+    fn from(value: String) -> Self {
+        Literal::String(value)
+    }
+}
+
+impl From<char> for Literal {
+    fn from(value: char) -> Self {
+        Literal::Char(value)
     }
 }
