@@ -1,0 +1,13 @@
+$import $$ stdlib/Option.hhl $$
+
+func find string char start
+    var i = 0;
+    while (len string) > i do
+        if string[i] == char then
+            return call opt_some i;
+        end
+        i = i + 1;
+    end
+
+    return call opt_none;
+end

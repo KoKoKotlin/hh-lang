@@ -1,0 +1,13 @@
+record Option start
+    some
+    is_none
+end
+
+func opt_some val start
+    return new Option (val, false);
+end
+
+func opt_none start
+    return new Option (0, true);
+end
+# TODO: when higher order functions become possible, implemente a map for the some value
