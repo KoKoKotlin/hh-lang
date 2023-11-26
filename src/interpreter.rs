@@ -145,11 +145,11 @@ impl InterpreterError {
     pub fn info(&self) -> String {
         match self {
             InterpreterError::VariableDoesNotExists(name_tok) => 
-                format!("Variable {} at {} does not exists!", name_tok.loc, name_tok.loc),
+                format!("Variable {} at {} does not exists!", name_tok.symbols, name_tok.loc),
             InterpreterError::ConstantReassign(name_tok) => 
-                format!("Can't reassing constant {} at {}!", name_tok.loc, name_tok.loc),
+                format!("Can't reassing constant {} at {}!", name_tok.symbols, name_tok.loc),
             InterpreterError::VariableNotInitialized(name_tok) => 
-                format!("Variable {} at {} is not initialized!", name_tok.loc, name_tok.loc),
+                format!("Variable {} at {} is not initialized!", name_tok.symbols, name_tok.loc),
             InterpreterError::UndefinedUnaryOperation(op_tok, lit) => 
                 format!("Can't apply unary operator {} at {} to literal of type {}!", op_tok.symbols, op_tok.loc, lit.get_type()),
             InterpreterError::UndefinedBinOperation(lit1, op_tok,lit2) => 
@@ -206,20 +206,24 @@ impl InterpreterContext {
     }
 
     fn get_name(&mut self, tok: &Token) -> Option<&mut Name> {
-        if let Some(scope) = self.scope_stack.last_mut() {
-            if let Some(name) = scope.get_name(tok) {
-                return Some(name);
-            }
-        } else if let Some(name) = self.global_scope.get_name(tok) {
-            return Some(name);
-        } 
+        let global_name = self.global_scope.get_name(tok);
+        let scope = self.scope_stack.last_mut();
 
-        None
+        let scope = match scope {
+            Some(s) => s,
+            None => return global_name,
+        };
+
+        let scope_name = scope.get_name(tok);
+        if scope_name.is_some() { scope_name } else { global_name }
     }
 
     fn name_exists(&self, tok: &Token) -> bool {
-        let exists_globally = self.global_scope.name_exists(tok);
-        self.scope_stack.last().map_or(exists_globally, |scope| scope.name_exists(tok))
+        let scope = self.scope_stack.last();
+        match scope {
+            Some(s) => s.name_exists(tok),
+            None => self.global_scope.name_exists(tok),
+        }
     }
 
     fn get_var_value(&self, tok: &Token) -> Result<MutRc<Literal>, InterpreterError> {
@@ -525,13 +529,14 @@ fn apply_op(left: MutRc<Literal>, op: &Token, right: MutRc<Literal>) -> Result<L
             }
         },
         EqualsEquals => {
+            println!("{:?}, {:?}", left, right);
             match (&left, &right) {
-                (lit1, lit2) => Ok((lit1 == lit2).into())
+                (lit1, lit2) => Ok((*lit1 == *lit2).into())
             }
         },
         NotEqual => {
             match (&left, &right) {
-                (lit1, lit2) => Ok((lit1 != lit2).into())
+                (lit1, lit2) => Ok((*lit1 != *lit2).into())
             }
         }
         _ => unimplemented!(),

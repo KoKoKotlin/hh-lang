@@ -106,7 +106,13 @@ impl Parser {
     fn built_in(&mut self) -> Result<Expr, ()> {
         use TokenKind::*;
         let call_tok = self.consume(&BUILT_INS).ok_or(())?;
-        let args = self.expr_list(Some(Comma), Semicolon)?;
+        let mut ends = vec![Semicolon, ClosingParan];
+        ends.extend_from_slice(&ADDITIVE_OPERATORS);
+        ends.extend_from_slice(&MULITPLICATIVE_OPERATORS);
+        ends.extend_from_slice(&LOGICAL_OPERATOR);
+        ends.extend_from_slice(&COMPARISON_OPERATORS);
+
+        let args = self.expr_list(Some(Comma), ends)?;
 
         return Ok(Expr::BuiltInCall(call_tok, args));
     }
@@ -185,7 +191,7 @@ impl Parser {
         
         self.consume(&[Call]).ok_or(())?;
         let func_name = self.consume(&[Ident]).ok_or(())?;
-        let args_exprs = self.expr_list(None, Semicolon)?;
+        let args_exprs = self.expr_list(None, vec![Semicolon])?;
 
         Ok(Expr::FuncCall(func_name, args_exprs))
     }
@@ -299,7 +305,7 @@ impl Parser {
         
         let init_exprs = if let Some(OpeningParan) = self.peek() {
             self.consume(&[OpeningParan]).ok_or(())?;
-            let exprs = self.expr_list(Some(Comma), ClosingParan)?;
+            let exprs = self.expr_list(Some(Comma), vec![ClosingParan])?;
             self.consume(&[ClosingParan]).ok_or(())?;
             exprs
         } else {
@@ -472,7 +478,7 @@ impl Parser {
         self.consume(&[New]).ok_or(())?;
         let record_name = self.consume(&[Ident]).ok_or(())?;        
         self.consume(&[OpeningParan]).ok_or(())?;
-        let exprs = self.expr_list(Some(Comma), ClosingParan)?;
+        let exprs = self.expr_list(Some(Comma), vec![ClosingParan])?;
         self.consume(&[ClosingParan]).ok_or(())?;
 
         Ok(Expr::RecordInstantiation(record_name, exprs))        
@@ -502,14 +508,16 @@ impl Parser {
         res
     }
 
-    fn expr_list(&mut self, sep: Option<TokenKind>, end: TokenKind) -> Result<Vec<Expr>, ()> {
+    fn expr_list(&mut self, sep: Option<TokenKind>, end: Vec<TokenKind>) -> Result<Vec<Expr>, ()> {
         let mut exprs = vec![];
         while let Some(kind) = self.peek() {
-            if kind == end { break; }
+            if end.contains(&kind) { break; }
             exprs.push(self.expr()?);
  
             if let Some(sep) = sep {
-                if Some(end) == self.peek() { break; }
+                if let Some(next) = self.peek() { 
+                    if end.contains(&next) { break; }
+                }
                 self.consume(&[sep]).ok_or(())?;
             }
         }

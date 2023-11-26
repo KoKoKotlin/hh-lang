@@ -22,14 +22,21 @@ fn load_source_code_file(path: &str) -> std::io::Result<String> {
 }
 
 fn main() {
-    let source_code = load_source_code_file(SOURCE_FILE_PATH).unwrap();
-    let source_code = match preprocess(&source_code) {
-        Ok(s) => s,
-        Err(err) => {
-             println!("{:?}", err);
-             return;
-        },
+    let mut source_code = load_source_code_file(SOURCE_FILE_PATH).unwrap();
+    // iterative because of import macro
+    while source_code.contains('$') {
+        source_code = match preprocess(&source_code) {
+            Ok(s) => s,
+            Err(err) => {
+                println!("{:?}", err);
+                return;
+            },
+        };
     };
+
+    if true {
+        println!("{}", source_code);
+    }
 
     if false {
         let mut tokenizer = tokenizer::Tokenizer::new(source_code.clone());
