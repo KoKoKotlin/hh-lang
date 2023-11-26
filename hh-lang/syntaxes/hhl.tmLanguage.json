@@ -15,6 +15,9 @@
 			"include": "#builtins"
 		},
 		{
+			"include": "#char"
+		},
+		{
 			"include": "#comments"
 		}
 	],
@@ -22,7 +25,7 @@
 		"keywords": {
 			"patterns": [{
 				"name": "keyword.control.hhl",
-				"match": "\\b(if|while|return|do|var|let|end|start|func|call|else|true|false|then|or|and|xor|record|new)\\b"
+				"match": "\\b(if|while|return|do|var|let|end|start|func|call|else|true|false|then|record|new|and|or|xor)\\b"
 			}]
 		},
 		"strings": {
@@ -51,6 +54,11 @@
 		"numbers": {
 			"name": "constant.numeric.hhl",
 			"match": "[0-9]*"
+		},
+		"char": {
+			"name": "constant.character.hll",
+			"begin": "'",
+			"end": "'"
 		}
 	},
 	"scopeName": "source.hhl"
