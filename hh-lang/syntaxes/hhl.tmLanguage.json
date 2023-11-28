@@ -49,7 +49,7 @@
 		},
 		"builtins": {
 			"name": "keyword.other.hhl",
-			"match": "\\b(println|print|dbg|readfile|writefile|appendfile|len|import)\\b"
+			"match": "\\b(println|print|dbg|readfile|writefile|appendfile|len|import|to_string)\\b"
 		},
 		"numbers": {
 			"name": "constant.numeric.hhl",

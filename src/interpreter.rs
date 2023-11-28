@@ -829,6 +829,11 @@ fn exec_built_in(context: &mut InterpreterContext, tok: &Token, args: &Vec<Expr>
                 _ => return Err(InterpreterError::ValueError(tok.clone(), format!("File path must be String not {}!", file_path.get_type()))),
             }
         },
+        ToString => {
+            let args = get_args(context, tok, 1, args)?;
+            let arg = args[0].borrow().clone();
+            return Ok(mut_rc(Literal::String(arg.to_string())));
+        },
         _ => unimplemented!("BuiltIn {:?} not implemented yet", tok.kind),
     }
 

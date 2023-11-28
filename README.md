@@ -34,7 +34,7 @@ Factor      => [ UNARY_OP ] IDENT { "." IDENT } | IDENT "[" Expr "]" | Primary |
 Primary     => INT | FLOAT | STRING | BOOL | CHAR
 LambdaDecl  => "\" {IDENT} "=>" Statment
 LambdaCall  => "invoke" IDENT {IDENT}
-BuiltIn     => "print" | "println" | "dbg" | "readfile" | "writefile" | "appendfile" | "len" | "import"
+BuiltIn     => "print" | "println" | "dbg" | "readfile" | "writefile" | "appendfile" | "len" | "import" | "to_string"
 ```
 
 ## Macros:

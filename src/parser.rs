@@ -44,7 +44,7 @@ const MULITPLICATIVE_OPERATORS: [TokenKind; 3] = [
     TokenKind::Percent,
 ];
 
-const BUILT_INS: [TokenKind; 8] = [
+const BUILT_INS: [TokenKind; 9] = [
     TokenKind::Print,
     TokenKind::Println,
     TokenKind::Dbg,
@@ -53,6 +53,7 @@ const BUILT_INS: [TokenKind; 8] = [
     TokenKind::AppendFile,
     TokenKind::Len,
     TokenKind::Import,
+    TokenKind::ToString,
 ];
 
 impl Parser {

@@ -65,6 +65,7 @@ pub enum TokenKind {
     AppendFile,
     Len,
     Import,
+    ToString,
 }
 
 impl Display for TokenKind {
@@ -126,6 +127,7 @@ impl Display for TokenKind {
             AppendFile => "Built-In appendfile",
             Len => "Built-In len",
             Import => "import",
+            ToString => "Built-In to_string",
         })
     }
 }
@@ -424,6 +426,7 @@ pub fn parse_ident(slice: &str) -> TokenKind {
         "len" => TokenKind::Len,
         "import" => TokenKind::Import,
         "invoke" => TokenKind::Invoke,
+        "to_string" => TokenKind::ToString,
         _ => TokenKind::Ident,
     }
 }
