@@ -43,7 +43,7 @@ const MULITPLICATIVE_OPERATORS: [TokenKind; 2] = [
     TokenKind::Div,
 ];
 
-const BUILT_INS: [TokenKind; 7] = [
+const BUILT_INS: [TokenKind; 8] = [
     TokenKind::Print,
     TokenKind::Println,
     TokenKind::Dbg,
@@ -51,6 +51,7 @@ const BUILT_INS: [TokenKind; 7] = [
     TokenKind::ReadFile,
     TokenKind::AppendFile,
     TokenKind::Len,
+    TokenKind::Import,
 ];
 
 impl Parser {

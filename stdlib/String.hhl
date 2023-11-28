@@ -1,4 +1,4 @@
-$import $$ stdlib/Option.hhl $$
+import "stdlib/Option.hhl";
 
 func find string char start
     var i = 0;

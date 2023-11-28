@@ -1,5 +1,5 @@
 use std::{rc::Rc, cell::RefCell, fs};
-use crate::{ast::{Program, Literal, Block, Statement, Expr}, tokenizer::{Token, TokenKind}};
+use crate::{ast::{Program, Literal, Block, Statement, Expr}, tokenizer::{Token, TokenKind}, parser::Parser};
 
 pub type MutRc<T> = Rc<RefCell<T>>;
 
@@ -140,6 +140,7 @@ pub enum InterpreterError {
     RecordFieldCount(Token),
     RecordFieldDoesNotExist(Token, Token),
     BuiltInError(Token, String),
+    ImportError(),
 }
 
 impl InterpreterError {
@@ -175,6 +176,8 @@ impl InterpreterError {
                 format!("Field {} does not exist in record {} at {}!", field_tok.symbols, record_tok.symbols, field_tok.loc),
             InterpreterError::BuiltInError(name_tok, err_str) => 
                 format!("Error during execution of built in function {} at {}: Reason: {}", name_tok.symbols, name_tok.loc, err_str),
+            InterpreterError::ImportError() => 
+                format!("Error during import!"),
         }
     }
 }
@@ -413,6 +416,25 @@ impl InterpreterContext {
         if let Some(scope) = self.scope_stack.last_mut() {
             scope.is_returning = true;
         }
+    }
+
+    fn import(&mut self, source_code: &str) -> InterpreterResult {
+        let mut parser = Parser::new(&source_code);
+        let ast_root = parser.parse();
+
+        if let Ok(ast_root) = ast_root {
+            for block in ast_root.0 {
+                match exec_block(self, &block) {
+                    Ok(_) => {},
+                    Err(err) => return Err(err),
+                }
+            }
+
+            Ok(())
+        } else {
+            return Err(InterpreterError::ImportError());
+        }
+        
     }
 }
 
@@ -736,7 +758,20 @@ fn exec_built_in(context: &mut InterpreterContext, tok: &Token, args: &Vec<Expr>
                 Literal::List(l) => l.len(),
                 lit => return Err(InterpreterError::ValueError(tok.clone(), format!("Can't get length of {}!", lit.get_type()))),
             } as i64).into()));
-        }
+        },
+        Import => {
+            let args = get_args(context, tok, 1, args)?;
+            let file_path = args[0].borrow().clone();
+            match file_path {
+                Literal::String(file_path) => {
+                    let file_content = fs::read_to_string(file_path)
+                        .map_err(|err| InterpreterError::BuiltInError(tok.clone(), format!("{}", err)))?;
+
+                    context.import(&file_content)?;
+                },
+                _ => return Err(InterpreterError::ValueError(tok.clone(), format!("File path must be String not {}!", file_path.get_type()))),
+            }
+        },
         _ => unimplemented!("BuiltIn {:?} not implemented yet", tok.kind),
     }
 

@@ -32,7 +32,7 @@ AddExpr     => MultExpr { ADD_OP MultExpr }
 MultExpr    => Factor { MULT_OP Factor }
 Factor      => [ UNARY_OP ] IDENT { "." IDENT } | IDENT "[" Expr "]" | Primary | "(" Expr ")"
 Primary     => INT | FLOAT | STRING | BOOL | CHAR
-BuiltIn     => "print" | "println" | "dbg" | "readfile" | "writefile" | "appendfile" | "len"
+BuiltIn     => "print" | "println" | "dbg" | "readfile" | "writefile" | "appendfile" | "len" | "import"
 ```
 
 ## Macros:
@@ -49,9 +49,9 @@ There are 2 special macros, that are directly hardcoded into the preprocessor.
   - `$define $$ MACRO_NAME $ ARG0 $ ARG1 $ ... $ REPLACE_STR $$`: This macro can be used to define new macros. The first argument is the name of the new macro, followed by a list of argument names that the new macro should have. The last argument is the replace string. The newly generated macro will replace the argument names inside of the replace string with the given argument values at the macro invocation. Then it will replace itself with the generated string. Macro redefinition is not allowed!
 
 #### Macro Examples:
-  - Loading the standard library into your script:
+  - Loading the text contents of a file:
   ```hll
-  $import $$ stdlib.h $$
+  $import $$ file.txt $$
   ```
   - Defining a macro with `$define` and invoking it inside of the main function:
   ```
@@ -69,6 +69,7 @@ There are 2 special macros, that are directly hardcoded into the preprocessor.
   - `writefile`: first argument: file path, second argument: object. Writes the objects string repr into the given file. When the file does not exists, it creates the file. Return: `()`
   - `appendfile`: first argument: file path, second argument: object. Writes the objects string repr into the given file appending to existing text. When the file does not exists, it creates the file. Return: `()`
   - `len`: Takes one argument and returns its length if its an container type. Return: `Int`
+  - `import`: Takes a file path as string as its only argument and tries executing the file at the given path. The symbols from the loaded file are then accessable in the file that called import. Return: `()``
 
 ### TODO:
   - lambdas, functions as values
