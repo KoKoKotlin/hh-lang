@@ -1,0 +1,25 @@
+import "stdlib/DynList.hhl";
+
+func map iter lambda start
+    var i = 0;
+    while i < (len iter) do
+        iter[i] = invoke lambda iter[i];
+        i = i + 1;
+    end
+
+    return iter;
+end
+
+func filter iter pred start
+    var d;
+    d = call dl_create 10;
+    var i = 0;
+    while i < (len iter) do
+        if (invoke pred iter[i]) then
+            call dl_push d iter[i];
+        end
+        i = i + 1;
+    end
+
+    return d;
+end
