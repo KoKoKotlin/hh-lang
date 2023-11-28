@@ -1,4 +1,4 @@
-use std::{rc::Rc, cell::RefCell, fs};
+use std::{rc::Rc, cell::RefCell, fs, borrow::BorrowMut};
 use crate::{ast::{Program, Literal, Block, Statement, Expr}, tokenizer::{Token, TokenKind, Location}, parser::Parser};
 
 pub type MutRc<T> = Rc<RefCell<T>>;
@@ -297,6 +297,22 @@ impl InterpreterContext {
                         }
 
                         values[idx as usize].replace(result.borrow().clone());
+                        return Ok(());
+                    },
+                    Literal::String(s) => {
+                        if idx as usize >= s.len() {
+                            return Err(InterpreterError::IndexOutOfBounds(tok.clone()));
+                        }
+
+                        let mut s = s.clone();
+                        match result.borrow().clone() {
+                            Literal::Char(c) => { 
+                                s.remove(idx as usize); 
+                                s.insert(idx as usize, c);
+                                name.value = Some(mut_rc(Literal::String(s)));
+                            },
+                            _ => return Err(InterpreterError::TypeError(tok.clone(), "Indices must be Number".to_string())),
+                        }
                         return Ok(());
                     },
                     lit => return Err(InterpreterError::TypeError(tok.clone(), format!("{} cannot be indexed!", lit.get_type()))),
