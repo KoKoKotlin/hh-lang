@@ -11,3 +11,18 @@ func find string char start
 
     return call opt_none;
 end
+
+func join list sep start
+    var i = 0;
+    var result = "";
+    
+    while (len list) > i do
+        result = result + list[i];
+        if (len list) > (i + 1) then
+            result = result + sep;
+        end
+        i = i + 1;
+    end
+
+    return result;
+end

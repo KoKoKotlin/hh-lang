@@ -57,3 +57,17 @@ func dl_pop dl start
     dl.current = dl.current - 1;
     return popped_val;
 end
+
+func dl_to_list dl start
+    var dl_list, i, new_list;
+
+    new_list = [dl.current]();
+    dl_list = dl.list;
+    i = 0;
+    while i < dl.current do
+        new_list[i] = dl_list[i];
+        i = i + 1;
+    end
+
+    return new_list;
+end
