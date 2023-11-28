@@ -1,6 +1,6 @@
 use std::{fs::File, io::Read};
 
-use parser::Parser;
+use clap::Parser;
 use preprocessor::preprocess;
 
 use crate::interpreter::interprete_ast;
@@ -11,7 +11,19 @@ mod ast;
 mod interpreter;
 mod preprocessor;
 
-const SOURCE_FILE_PATH: &'static str = "main.hhl";
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    #[arg(short, long)]
+    tokens: bool,
+    #[arg(short, long)]
+    preprocessor: bool,
+    #[arg(short, long)]
+    context: bool,
+
+    file: String,
+}
+
 
 fn load_source_code_file(path: &str) -> std::io::Result<String> {
     let mut file = File::open(path)?;
@@ -22,7 +34,9 @@ fn load_source_code_file(path: &str) -> std::io::Result<String> {
 }
 
 fn main() {
-    let mut source_code = load_source_code_file(SOURCE_FILE_PATH).unwrap();
+    let args = Args::parse();
+
+    let mut source_code = load_source_code_file(&args.file).unwrap();
     // iterative because of import macro
     while source_code.contains('$') {
         source_code = match preprocess(&source_code) {
@@ -34,22 +48,25 @@ fn main() {
         };
     };
 
-    if false {
+    if args.preprocessor {
         println!("{}", source_code);
     }
 
-    if false {
+    if args.tokens {
         let mut tokenizer = tokenizer::Tokenizer::new(source_code.clone());
         while let Some(token) = tokenizer.next_token() {
             println!("{:?}", token);
         }    
     }
 
-    let mut parser = Parser::new(&source_code);
+    let mut parser = parser::Parser::new(&source_code);
     let ast_root = parser.parse();
 
     if let Ok(ast_root) = ast_root {
         let (err, context) = interprete_ast(ast_root);
+        if args.context {
+            println!("{:?}", context);
+        }
         match &err {
             Err(err) => println!("{}", err.info()),
             _ => {}
