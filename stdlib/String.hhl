@@ -1,6 +1,6 @@
 import "stdlib/Option.hhl";
 
-func find string char start
+func str_find string char start
     var i = 0;
     while (len string) > i do
         if string[i] == char then
@@ -12,7 +12,7 @@ func find string char start
     return call opt_none;
 end
 
-func join list sep start
+func str_join list sep start
     var i = 0;
     var result = "";
     

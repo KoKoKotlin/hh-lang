@@ -10,4 +10,11 @@ end
 func opt_none start
     return new Option (0, true);
 end
-# TODO: when higher order functions become possible, implemente a map for the some value
+
+func opt_map opt f start
+    if opt.is_none then
+        return opt;
+    else
+        return call opt_some (invoke f opt.some);
+    end
+end
