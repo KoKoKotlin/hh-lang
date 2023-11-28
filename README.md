@@ -74,7 +74,6 @@ There are 2 special macros, that are directly hardcoded into the preprocessor.
   - `import`: Takes a file path as string as its only argument and tries executing the file at the given path. The symbols from the loaded file are then accessable in the file that called import. Return: `()``
 
 ### TODO:
-  - lambdas, functions as values
   - for loop
   - remove *.borrow().clone() by using get_type with another enum variant Type
 
