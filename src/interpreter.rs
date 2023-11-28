@@ -1,5 +1,5 @@
 use std::{rc::Rc, cell::RefCell, fs};
-use crate::{ast::{Program, Literal, Block, Statement, Expr}, tokenizer::{Token, TokenKind}, parser::Parser};
+use crate::{ast::{Program, Literal, Block, Statement, Expr}, tokenizer::{Token, TokenKind}};
 
 pub type MutRc<T> = Rc<RefCell<T>>;
 
@@ -10,6 +10,7 @@ pub fn mut_rc<T>(t: T) -> MutRc<T> {
 #[derive(Debug)]
 struct Scope {
     names: Vec<Name>,
+    is_returning: bool,
 }
 
 impl Scope {
@@ -20,9 +21,9 @@ impl Scope {
             for (token, lit) in init.into_iter() {
                 names.push(Name::make_var(&token.symbols, Some(lit.clone())));
             }            
-            Self { names }
+            Self { names, is_returning: false }
         } else {
-            Self { names: vec![] }
+            Self { names: vec![], is_returning: false }
         }
     }
 
@@ -399,6 +400,20 @@ impl InterpreterContext {
             return Err(InterpreterError::RecordFieldDoesNotExist(record.name.clone(), field_tok.clone()));
         }
     }
+
+    fn is_returning(&self) -> bool {
+        if let Some(scope) = self.scope_stack.last() {
+            scope.is_returning
+        } else {
+            false
+        }
+    }
+
+    fn start_returning(&mut self) {
+        if let Some(scope) = self.scope_stack.last_mut() {
+            scope.is_returning = true;
+        }
+    }
 }
 
 fn apply_unary(op: &Token, operand: MutRc<Literal>) -> Result<Literal, InterpreterError> {
@@ -624,28 +639,33 @@ fn exec_list_instantiation(context: &mut InterpreterContext, tok: &Token, capaci
     Ok(mut_rc(Literal::List(value)))
 }
 
-fn exec_if(context: &mut InterpreterContext, cond: &Expr, if_block: &Block, else_block: Option<&Block>) -> InterpreterResult {
+fn exec_if(context: &mut InterpreterContext, cond: &Expr, if_block: &Block, else_block: Option<&Block>) -> Result<MutRc<Literal>, InterpreterError> {
     let cond = context.eval(cond)?;
     let cond = cond.borrow();
 
     if cond.is_truthy() {
-        exec_block(context, if_block)?;
+        exec_block(context, if_block)
     } else if let Some(else_block) = else_block {
-        exec_block(context, else_block)?;
+        exec_block(context, else_block)
+    } else {
+        Ok(mut_rc(Literal::Unit))
     }
-
-    Ok(())
 }
 
-fn exec_while(context: &mut InterpreterContext, cond_expr: &Expr, block: &Block) -> InterpreterResult {
+fn exec_while(context: &mut InterpreterContext, cond_expr: &Expr, block: &Block) -> Result<MutRc<Literal>, InterpreterError> {
 
     let mut cond = context.eval(cond_expr)?;
     while (*cond.borrow()).is_truthy() {
-        exec_block(context, block)?;
+        let maybe_return_val = exec_block(context, block)?;
+
+        if context.is_returning() {
+            return Ok(maybe_return_val);
+        }
+
         cond = context.eval(cond_expr)?;
     }
 
-    Ok(())
+    Ok(mut_rc(Literal::Unit))
 }
 
 fn get_args(context: &mut InterpreterContext, tok: &Token, expected_count: usize, args: &Vec<Expr>) -> Result<Vec<MutRc<Literal>>, InterpreterError> {
@@ -758,12 +778,23 @@ fn exec_block(context: &mut InterpreterContext, block: &Block) -> Result<MutRc<L
             Statement::ListReassign(tok, idx_expr, val_expr) => exec_list_reassign(context, tok, idx_expr, val_expr)?,
             Statement::ConstAssign(assigns) => exec_const_assign(context, assigns)?,
             Statement::VarDecl(decls) => exec_var_decl(context, decls)?,
-            Statement::If(cond, if_block, else_block) => exec_if(context, cond, if_block, else_block.as_ref())?,
-            Statement::While(cond, block) => exec_while(context, cond, block)?,
+            Statement::If(cond, if_block, else_block) => {
+                let maybe_return_val = exec_if(context, cond, if_block, else_block.as_ref())?;
+                if context.is_returning() {
+                    return Ok(maybe_return_val);
+                }
+            },
+            Statement::While(cond, block) => {
+                let maybe_return_val = exec_while(context, cond, block)?;
+                if context.is_returning() {
+                    return Ok(maybe_return_val);
+                }
+            },
             Statement::FuncDecl(func_name, args, code) => exec_func_decl(context, func_name, args, code)?,
             Statement::RecordDecl(record_name, fields) => exec_record_decl(context, record_name, fields)?,
             Statement::Expr(expr) => exec_expr(context, expr)?,
             Statement::Return(expr) => {
+                context.start_returning();
                 return Ok(context.eval(expr)?);
             },
         }

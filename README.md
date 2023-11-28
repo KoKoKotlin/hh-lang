@@ -74,9 +74,8 @@ There are 2 special macros, that are directly hardcoded into the preprocessor.
   - lambdas, functions as values
   - for loop
   - remove *.borrow().clone() by using get_type with another enum variant Type
-  - "include guard" for import macro
+  - replace import macro with import statement, that loads the file and executes its content with the interpreter
 
 ### BUGS:
   - when passing list literals behind idents in func argument list, then the parser thinks the len expr of the list is an indexing of the ident
-  - when returning from if/while blocks, the return does not end the function, only the if/while block
   - grammar issues when using calls and builtins inside of argument lists or conditions => root problem with expr_list
