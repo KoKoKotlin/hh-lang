@@ -75,7 +75,6 @@ There are 2 special macros, that are directly hardcoded into the preprocessor.
   - lambdas, functions as values
   - for loop
   - remove *.borrow().clone() by using get_type with another enum variant Type
-  - replace import macro with import statement, that loads the file and executes its content with the interpreter
 
 ### BUGS:
   - when passing list literals behind idents in func argument list, then the parser thinks the len expr of the list is an indexing of the ident
