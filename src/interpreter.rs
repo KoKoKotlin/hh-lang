@@ -557,6 +557,15 @@ fn apply_op(left: MutRc<Literal>, op: &Token, right: MutRc<Literal>) -> Result<L
                 _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
             }
         },
+        Percent => {
+            match (&left, &right) {
+                (_, Literal::Int(right)) if *right == 0 => Err(InterpreterError::DivisionByZero(op.clone())),
+                (_, Literal::Float(right)) if *right == 0.0 => Err(InterpreterError::DivisionByZero(op.clone())),
+                (Literal::Int(left), Literal::Int(right)) => Ok((left % right).into()),
+                (Literal::Float(left), Literal::Float(right)) => Ok((left % right).into()),
+                _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
+            }
+        }
         And => {
             match (&left, &right) {
                 (Literal::Bool(val1), Literal::Bool(val2)) => Ok((*val1 && *val2).into()),

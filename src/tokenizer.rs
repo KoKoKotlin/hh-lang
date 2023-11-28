@@ -27,6 +27,7 @@ pub enum TokenKind {
     Bang,
     Dot,
     Backslash,
+    Percent,
 
     // composite tokens
     LessOrEqual,
@@ -93,6 +94,7 @@ impl Display for TokenKind {
             Bang => "!",
             Dot => ".",
             Backslash => "\\",
+            Percent => "%",
             LessOrEqual => "<=",
             GreaterOrEqual => ">=",
             NotEqual => "!=",
@@ -332,7 +334,7 @@ fn string(char_iter: Chars) -> (usize, Option<TokenKind>) {
 fn is_operator_token(c: char) -> bool {
     c == ',' || c == '+' || c == '-' || c == '*' || c == '/' || c == '=' 
  || c == '[' || c == ']' || c == ';' || c == '<' || c == '>' || c == '!'
- || c == '(' || c == ')' || c == '.' || c == '\\'
+ || c == '(' || c == ')' || c == '.' || c == '%' || c == '\\'
 }
 
 fn parse_one_symbol_token(c: char) -> TokenKind {
@@ -353,6 +355,7 @@ fn parse_one_symbol_token(c: char) -> TokenKind {
         '!' => TokenKind::Bang,
         '.' => TokenKind::Dot,
         '\\' => TokenKind::Backslash,
+        '%' => TokenKind::Percent,
         _ => unreachable!(),
     }
 }

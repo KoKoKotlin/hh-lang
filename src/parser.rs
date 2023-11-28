@@ -38,9 +38,10 @@ const ADDITIVE_OPERATORS: [TokenKind; 2] = [
     TokenKind::Minus,
 ];
 
-const MULITPLICATIVE_OPERATORS: [TokenKind; 2] = [
+const MULITPLICATIVE_OPERATORS: [TokenKind; 3] = [
     TokenKind::Times,
     TokenKind::Div,
+    TokenKind::Percent,
 ];
 
 const BUILT_INS: [TokenKind; 8] = [
