@@ -53,6 +53,7 @@ pub enum TokenKind {
     Record,
     New,
     Return,
+    Invoke,
 
     // built-in functions
     Print,
@@ -117,6 +118,7 @@ impl Display for TokenKind {
             New => "new",
             Dbg => "Built-In Dbg",
             Return => "return",
+            Invoke => "invoke",
             ReadFile => "Built-In readfile",
             WriteFile => "Built-In writefile",
             AppendFile => "Built-In appendfile",
@@ -131,6 +133,12 @@ pub struct Location {
     row: usize,
     col: usize,
     // TODO: filename
+}
+
+impl Location {
+    pub fn new(row: usize, col: usize) -> Self {
+        Self { row, col }
+    }
 }
 
 impl Display for Location {
@@ -324,7 +332,7 @@ fn string(char_iter: Chars) -> (usize, Option<TokenKind>) {
 fn is_operator_token(c: char) -> bool {
     c == ',' || c == '+' || c == '-' || c == '*' || c == '/' || c == '=' 
  || c == '[' || c == ']' || c == ';' || c == '<' || c == '>' || c == '!'
- || c == '(' || c == ')' || c == '.'
+ || c == '(' || c == ')' || c == '.' || c == '\\'
 }
 
 fn parse_one_symbol_token(c: char) -> TokenKind {
@@ -412,6 +420,7 @@ pub fn parse_ident(slice: &str) -> TokenKind {
         "appendfile" => TokenKind::AppendFile,
         "len" => TokenKind::Len,
         "import" => TokenKind::Import,
+        "invoke" => TokenKind::Invoke,
         _ => TokenKind::Ident,
     }
 }

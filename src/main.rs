@@ -34,7 +34,7 @@ fn main() {
         };
     };
 
-    if true {
+    if false {
         println!("{}", source_code);
     }
 
@@ -44,6 +44,7 @@ fn main() {
             println!("{:?}", token);
         }    
     }
+
     let mut parser = Parser::new(&source_code);
     let ast_root = parser.parse();
 

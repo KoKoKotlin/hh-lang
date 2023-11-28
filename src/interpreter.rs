@@ -1,5 +1,5 @@
 use std::{rc::Rc, cell::RefCell, fs};
-use crate::{ast::{Program, Literal, Block, Statement, Expr}, tokenizer::{Token, TokenKind}, parser::Parser};
+use crate::{ast::{Program, Literal, Block, Statement, Expr}, tokenizer::{Token, TokenKind, Location}, parser::Parser};
 
 pub type MutRc<T> = Rc<RefCell<T>>;
 
@@ -96,8 +96,8 @@ impl Func {
         Self { name: name.clone(), args: args.clone(), code: code.clone() }
     }
 
-    fn new_lambda(name: &Token, args: &Vec<Token>, expr: &Expr) -> Self {
-        let code = Block(vec![Statement::Expr(expr.clone())]);
+    fn new_lambda(name: &Token, args: &Vec<Token>, body: &Statement) -> Self {
+        let code = Block(vec![body.clone()]);
         Self { name: name.clone(), args: args.clone(), code }
     }
 }
@@ -330,14 +330,29 @@ impl InterpreterContext {
             Expr::ListInstantiation(tok, capacity, init_exprs) => exec_list_instantiation(self, tok, capacity, init_exprs),
             Expr::RecordInstantiation(record_name, field_exprs) => self.instance_record(record_name, field_exprs),
             Expr::RecordFieldDeref(record_tok, field_toks) => exec_record_field_deref(self, record_tok, field_toks),
-            Expr::LambdaInstantiation(lambda_tok, arg_toks, body_expr) => self.instance_lambda(lambda_tok, arg_toks, body_expr),
+            Expr::LambdaInstantiation(arg_toks, body_expr) => self.instance_lambda(arg_toks, body_expr),
+            Expr::LambdaCall(invoke_tok, lambda, args_exprs) => {
+                let lambda = self.eval(&lambda)?;
+                let func_name = match lambda.borrow().clone() {
+                    Literal::LambdaInstance(tok) => tok,
+                    _ => return Err(InterpreterError::TypeError(invoke_tok.clone(), "Can't call non-lambda!".to_string())),
+                };
+
+                self.exec_func(&func_name, args_exprs)
+            }
         }
     }
 
     fn get_func(&self, func_name: &Token) -> Option<Func> {
+        println!("{:?}", self.get_curr_scope().lambdas);
+        for lambda in self.get_curr_scope().lambdas.iter() {
+            if lambda.name.symbols == func_name.symbols { return Some(lambda.clone()); }
+        }
+        
         for func in self.func_decls.iter() {
             if func.name.symbols == func_name.symbols { return Some(func.clone()); }
         }
+        
         None
     }
 
@@ -384,9 +399,12 @@ impl InterpreterContext {
         }
     }
 
-    fn instance_lambda(&mut self, lambda_tok: &Token, arg_toks: &Vec<Token>, body_expr: &Expr) -> Result<MutRc<Literal>, InterpreterError> {
-        self.get_curr_scope_mut().lambdas.push(Func::new_lambda(lambda_tok, arg_toks, body_expr));
-        Ok(mut_rc(Literal::LambdaInstance(lambda_tok.clone())))
+    fn instance_lambda(&mut self, arg_toks: &Vec<Token>, body_expr: &Statement) -> Result<MutRc<Literal>, InterpreterError> {
+        let scope = self.get_curr_scope_mut();
+        let lambda_name = format!("lambda{}", scope.lambdas.len());
+        let lambda_tok = Token::new(Location::new(0, 0), 0, TokenKind::Ident, lambda_name);
+        scope.lambdas.push(Func::new_lambda(&lambda_tok, arg_toks, body_expr));
+        Ok(mut_rc(Literal::LambdaInstance(lambda_tok)))
     }
 
     fn record_field_defef(&mut self, record_tok: &Token, record_lit: MutRc<Literal>, field_toks: &Vec<Token>, current_tok_idx: usize) -> Result<MutRc<Literal>, InterpreterError> {
@@ -573,7 +591,6 @@ fn apply_op(left: MutRc<Literal>, op: &Token, right: MutRc<Literal>) -> Result<L
             }
         },
         EqualsEquals => {
-            println!("{:?}, {:?}", left, right);
             match (&left, &right) {
                 (lit1, lit2) => Ok((*lit1 == *lit2).into())
             }
@@ -795,17 +812,9 @@ fn exec_record_decl(context: &mut InterpreterContext, record_name: &Token, field
     Ok(())
 }
 
-fn exec_func_call(context: &mut InterpreterContext, func_name: &Token, args_exprs: &Vec<Expr>) -> Result<MutRc<Literal>, InterpreterError> {
-    context.exec_func(func_name, args_exprs)
-}
-
 fn exec_expr(context: &mut InterpreterContext, expr: &Expr) -> InterpreterResult {
     let _ = context.eval(expr)?;
     Ok(())
-}
-
-fn exec_record_instantiation(context: &mut InterpreterContext, record_name: &Token, field_values: &Vec<Expr>) -> Result<MutRc<Literal>, InterpreterError> {
-    context.instance_record(record_name, field_values)
 }
 
 fn exec_record_field_deref(context: &mut InterpreterContext, record_tok: &Token, field_toks: &Vec<Token>) -> Result<MutRc<Literal>, InterpreterError> {

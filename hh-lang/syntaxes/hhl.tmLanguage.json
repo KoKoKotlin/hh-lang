@@ -25,7 +25,7 @@
 		"keywords": {
 			"patterns": [{
 				"name": "keyword.control.hhl",
-				"match": "\\b(if|while|return|do|var|let|end|start|func|call|else|true|false|then|record|new|and|or|xor)\\b"
+				"match": "\\b(if|while|return|do|var|let|end|start|func|call|else|true|false|then|record|new|and|or|xor|invoke)\\b"
 			}]
 		},
 		"strings": {
@@ -49,7 +49,7 @@
 		},
 		"builtins": {
 			"name": "keyword.other.hhl",
-			"match": "\\b(println|print|dbg|openfile|readfile|writefile|closefile)\\b"
+			"match": "\\b(println|print|dbg|readfile|writefile|appendfile|len|import)\\b"
 		},
 		"numbers": {
 			"name": "constant.numeric.hhl",

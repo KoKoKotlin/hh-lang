@@ -82,26 +82,38 @@ impl Parser {
         let mut statements: Vec<Statement> = vec![];
         
         while let Some(head) = self.peek() {
-            statements.push(match head {
-                Let => self.let_binding()?,
-                Var => self.var_decl()?,
-                Ident => self.reassign()?,
-                If => self.fi()?,
-                While => self.elihw()?,
-                Func => self.func()?,
-                Record => self.record()?,
-                Return => self.return_()?,
-                End | Else => { break; }
-                // if all else fails try to parse the next statement as a standalone expression
-                _ => {
-                    let expr = self.expr()?;
-                    let _ = self.consume(&[Semicolon]).ok_or(());
-                    Statement::Expr(expr)
-                },
-            });
+            if head == End || head == Else { break; }
+            else {
+                statements.push(self.statement()?);
+            }
         }
 
         Ok(Block(statements))
+    }
+
+    fn statement(&mut self) -> Result<Statement, ()> {
+        use TokenKind::*;
+        let look_ahead = match self.peek() {
+            Some(kind) => kind,
+            None => return Err(()),
+        };
+
+        Ok(match look_ahead {
+            Let => self.let_binding()?,
+            Var => self.var_decl()?,
+            Ident => self.reassign()?,
+            If => self.fi()?,
+            While => self.elihw()?,
+            Func => self.func()?,
+            Record => self.record()?,
+            Return => self.return_()?,
+            // if all else fails try to parse the next statement as a standalone expression
+            _ => {
+                let expr = self.expr()?;
+                let _ = self.consume(&[Semicolon]).ok_or(());
+                Statement::Expr(expr)
+            },
+        })
     }
 
     fn built_in(&mut self) -> Result<Expr, ()> {
@@ -192,7 +204,13 @@ impl Parser {
         
         self.consume(&[Call]).ok_or(())?;
         let func_name = self.consume(&[Ident]).ok_or(())?;
-        let args_exprs = self.expr_list(None, vec![Semicolon])?;
+        let mut ends = vec![Semicolon, ClosingParan];
+        ends.extend_from_slice(&ADDITIVE_OPERATORS);
+        ends.extend_from_slice(&MULITPLICATIVE_OPERATORS);
+        ends.extend_from_slice(&LOGICAL_OPERATOR);
+        ends.extend_from_slice(&COMPARISON_OPERATORS);
+
+        let args_exprs = self.expr_list(None, ends)?;
 
         Ok(Expr::FuncCall(func_name, args_exprs))
     }
@@ -434,6 +452,9 @@ impl Parser {
             Some(Backslash) => {
                 return self.lambda();
             }
+            Some(Invoke) => {
+                return self.invoke();
+            }
             Some(kind) if UNARY_OPERATORS.contains(&kind) => {
                 let op = self.consume(&UNARY_OPERATORS).ok_or(())?;
                 let factor = self.factor()?;
@@ -451,12 +472,26 @@ impl Parser {
         use TokenKind::*;
 
         self.consume(&[Backslash]).ok_or(())?;
-        let name = self.consume(&[Ident]).ok_or(())?;
         let args = self.consume_list(Ident, None, Arrow).ok_or(())?;
         self.consume(&[Arrow]).ok_or(())?;
-        let expr = self.expr()?;
+        let expr = self.statement()?;
 
-        Ok(Expr::LambdaInstantiation(name, args, Box::new(expr)))
+        Ok(Expr::LambdaInstantiation(args, Box::new(expr)))
+    }
+    
+    fn invoke(&mut self) -> Result<Expr, ()> {
+        use TokenKind::*;
+
+        let invoke = self.consume(&[Invoke]).ok_or(())?;
+        let lambda = self.expr()?;
+        let mut ends = vec![Semicolon, ClosingParan];
+        ends.extend_from_slice(&ADDITIVE_OPERATORS);
+        ends.extend_from_slice(&MULITPLICATIVE_OPERATORS);
+        ends.extend_from_slice(&LOGICAL_OPERATOR);
+        ends.extend_from_slice(&COMPARISON_OPERATORS);
+        let args = self.expr_list(None, ends)?;
+
+        Ok(Expr::LambdaCall(invoke, Box::new(lambda), args))
     }
 
     fn primary(&mut self) -> Result<Literal, ()> {

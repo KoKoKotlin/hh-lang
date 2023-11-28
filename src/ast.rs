@@ -34,7 +34,8 @@ pub enum Expr {
     ListInstantiation(Token, Box<Expr>, Vec<Expr>),
     RecordInstantiation(Token, Vec<Expr>),
     RecordFieldDeref(Token, Vec<Token>),
-    LambdaInstantiation(Token, Vec<Token>, Box<Expr>),
+    LambdaInstantiation(Vec<Token>, Box<Statement>),
+    LambdaCall(Token, Box<Expr>, Vec<Expr>),
 }
 
 #[derive(Clone, Debug, PartialEq)]
