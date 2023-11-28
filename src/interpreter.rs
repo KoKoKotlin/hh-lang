@@ -10,7 +10,6 @@ pub fn mut_rc<T>(t: T) -> MutRc<T> {
 #[derive(Debug)]
 struct Scope {
     names: Vec<Name>,
-    lambdas: Vec<Func>,
     is_returning: bool,
 }
 
@@ -22,9 +21,9 @@ impl Scope {
             for (token, lit) in init.into_iter() {
                 names.push(Name::make_var(&token.symbols, Some(lit.clone())));
             }            
-            Self { names, lambdas: vec![], is_returning: false }
+            Self { names, is_returning: false }
         } else {
-            Self { names: vec![], lambdas: vec![], is_returning: false }
+            Self { names: vec![], is_returning: false }
         }
     }
 
@@ -347,23 +346,20 @@ impl InterpreterContext {
             Expr::RecordInstantiation(record_name, field_exprs) => self.instance_record(record_name, field_exprs),
             Expr::RecordFieldDeref(record_tok, field_toks) => exec_record_field_deref(self, record_tok, field_toks),
             Expr::LambdaInstantiation(arg_toks, body_expr) => self.instance_lambda(arg_toks, body_expr),
-            Expr::LambdaCall(invoke_tok, lambda, args_exprs) => {
-                let lambda = self.eval(&lambda)?;
-                let func_name = match lambda.borrow().clone() {
-                    Literal::LambdaInstance(tok) => tok,
+            Expr::LambdaCall(invoke_tok, lambda_expr, args_exprs) => {
+                let lambda = self.eval(&lambda_expr)?;
+                
+                let (arg_toks, body) = match lambda.borrow().clone() {
+                    Literal::LambdaInstance(args, body) => (args, body),
                     _ => return Err(InterpreterError::TypeError(invoke_tok.clone(), "Can't call non-lambda!".to_string())),
                 };
 
-                self.exec_func(&func_name, args_exprs)
+                self.exec_lambda(invoke_tok, &arg_toks, &body, args_exprs)
             }
         }
     }
 
     fn get_func(&self, func_name: &Token) -> Option<Func> {
-        for lambda in self.get_curr_scope().lambdas.iter() {
-            if lambda.name.symbols == func_name.symbols { return Some(lambda.clone()); }
-        }
-        
         for func in self.func_decls.iter() {
             if func.name.symbols == func_name.symbols { return Some(func.clone()); }
         }
@@ -392,6 +388,23 @@ impl InterpreterContext {
         }
     }
 
+    fn exec_lambda(&mut self, invoke_tok: &Token, arg_toks: &Vec<Token>, body: &Statement, args_exprs: &Vec<Expr>) -> Result<MutRc<Literal>, InterpreterError> {
+        if arg_toks.len() != args_exprs.len() {
+            return Err(InterpreterError::CallArgumentCount(invoke_tok.clone()));
+        }
+
+        let args_lits: Result<Vec<MutRc<Literal>>, InterpreterError> = args_exprs.iter()
+            .map(|expr| self.eval(expr))
+            .collect();
+        let args_lits = args_lits?;
+
+        let func_scope = Scope::new(Some(arg_toks.iter().zip(args_lits.into_iter()).collect()));
+        self.scope_stack.push(func_scope);
+        let return_val = exec_block(self, &Block(vec![body.clone()]))?;
+        let _ = self.scope_stack.pop();
+        return Ok(return_val);
+    }
+
     fn get_record(&self, record_name: &Token) -> Option<Record> {
         for record in self.record_decls.iter() {
             if record.name.symbols == record_name.symbols { return Some(record.clone()); }
@@ -415,11 +428,7 @@ impl InterpreterContext {
     }
 
     fn instance_lambda(&mut self, arg_toks: &Vec<Token>, body_expr: &Statement) -> Result<MutRc<Literal>, InterpreterError> {
-        let scope = self.get_curr_scope_mut();
-        let lambda_name = format!("lambda{}", scope.lambdas.len());
-        let lambda_tok = Token::new(Location::new(0, 0), 0, TokenKind::Ident, lambda_name);
-        scope.lambdas.push(Func::new_lambda(&lambda_tok, arg_toks, body_expr));
-        Ok(mut_rc(Literal::LambdaInstance(lambda_tok)))
+        Ok(mut_rc(Literal::LambdaInstance(arg_toks.clone(), Box::new(body_expr.clone()))))
     }
 
     fn record_field_defef(&mut self, record_tok: &Token, record_lit: MutRc<Literal>, field_toks: &Vec<Token>, current_tok_idx: usize) -> Result<MutRc<Literal>, InterpreterError> {

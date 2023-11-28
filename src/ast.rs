@@ -38,7 +38,7 @@ pub enum Expr {
     LambdaCall(Token, Box<Expr>, Vec<Expr>),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum Literal {
     String(String),
     Int(i64),
@@ -47,8 +47,25 @@ pub enum Literal {
     Char(char),
     List(Vec<MutRc<Literal>>),
     RecordInstance(Token, Vec<MutRc<Literal>>),
-    LambdaInstance(Token),
+    LambdaInstance(Vec<Token>, Box<Statement>),
     Unit,
+}
+
+impl PartialEq for Literal {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Literal::String(str1), Literal::String(str2)) => str1 == str2,
+            (Literal::Int(num1), Literal::Int(num2)) => num1 == num2,
+            (Literal::Float(num1), Literal::Float(num2)) => num1 == num2,
+            (Literal::Bool(val1), Literal::Bool(val2)) => val1 == val2,
+            (Literal::Char(c1), Literal::Char(c2)) => c1 == c2,
+            (Literal::List(l1), Literal::List(l2)) => l1 == l2,
+            (Literal::RecordInstance(_, _), Literal::RecordInstance(_, _)) => false,
+            (Literal::LambdaInstance(_, _), Literal::LambdaInstance(_, _)) => false,
+            (Literal::Unit, Literal::Unit) => true,
+            _ => false,
+        }
+    }
 }
 
 impl Display for Literal {
@@ -67,7 +84,7 @@ impl Literal {
             Literal::Bool(val) => *val,
             Literal::Char(c) => *c != '\0',
             Literal::RecordInstance(_, _) => true,
-            Literal::LambdaInstance(_) => true,
+            Literal::LambdaInstance(_, _) => true,
             Literal::Unit => false,
         }
     }
@@ -112,7 +129,7 @@ impl Literal {
             Literal::Char(_) => "Char",
             Literal::List(_) => "List",
             Literal::RecordInstance(_, _) => "RecordInstance",
-            Literal::LambdaInstance(_) => "LambdaInstance",
+            Literal::LambdaInstance(_, _) => "LambdaInstance",
             Literal::Unit => "Unit",
         }
     }
