@@ -10,6 +10,7 @@ pub fn mut_rc<T>(t: T) -> MutRc<T> {
 #[derive(Debug)]
 struct Scope {
     names: Vec<Name>,
+    lambdas: Vec<Func>,
     is_returning: bool,
 }
 
@@ -21,9 +22,9 @@ impl Scope {
             for (token, lit) in init.into_iter() {
                 names.push(Name::make_var(&token.symbols, Some(lit.clone())));
             }            
-            Self { names, is_returning: false }
+            Self { names, lambdas: vec![], is_returning: false }
         } else {
-            Self { names: vec![], is_returning: false }
+            Self { names: vec![], lambdas: vec![], is_returning: false }
         }
     }
 
@@ -93,6 +94,11 @@ struct Func {
 impl Func {
     fn new(name: &Token, args: &Vec<Token>, code: &Block) -> Self {
         Self { name: name.clone(), args: args.clone(), code: code.clone() }
+    }
+
+    fn new_lambda(name: &Token, args: &Vec<Token>, expr: &Expr) -> Self {
+        let code = Block(vec![Statement::Expr(expr.clone())]);
+        Self { name: name.clone(), args: args.clone(), code }
     }
 }
 
@@ -190,23 +196,11 @@ impl InterpreterContext {
     }
 
     fn create_var(&mut self, tok: &Token, lit: Option<MutRc<Literal>>) {
-        let scope = if let Some(local_scope) = self.scope_stack.last_mut() {
-            local_scope
-        } else {
-            &mut self.global_scope
-        };
-
-        scope.push(Name::make_var(&tok.symbols, lit));
+        self.get_curr_scope_mut().push(Name::make_var(&tok.symbols, lit));
     }
 
     fn create_const(&mut self, tok: &Token, lit: MutRc<Literal>) {
-        let scope = if let Some(local_scope) = self.scope_stack.last_mut() {
-            local_scope
-        } else {
-            &mut self.global_scope
-        };
-
-        scope.push(Name::make_const(&tok.symbols, lit));
+        self.get_curr_scope_mut().push(Name::make_const(&tok.symbols, lit));
     }
 
     fn get_name(&mut self, tok: &Token) -> Option<&mut Name> {
@@ -222,22 +216,29 @@ impl InterpreterContext {
         if scope_name.is_some() { scope_name } else { global_name }
     }
 
-    fn name_exists(&self, tok: &Token) -> bool {
-        let scope = self.scope_stack.last();
-        match scope {
-            Some(s) => s.name_exists(tok),
-            None => self.global_scope.name_exists(tok),
+    fn get_curr_scope(&self) -> &Scope {
+        if let Some(scope) = self.scope_stack.last() {
+            scope
+        } else {
+            &self.global_scope
         }
+    }
+
+    fn get_curr_scope_mut(&mut self) -> &mut Scope {
+        if let Some(scope) = self.scope_stack.last_mut() {
+            scope
+        } else {
+            &mut self.global_scope
+        }
+    }
+
+    fn name_exists(&self, tok: &Token) -> bool {
+        self.get_curr_scope().name_exists(tok)
     }
 
     fn get_var_value(&self, tok: &Token) -> Result<MutRc<Literal>, InterpreterError> {
         if !self.name_exists(tok) { return Err(InterpreterError::VariableDoesNotExists(tok.clone())) };
-
-        if let Some(scope) = self.scope_stack.last() {
-            scope.get_var_value(tok)
-        } else {
-            self.global_scope.get_var_value(tok)
-        }
+        self.get_curr_scope().get_var_value(tok)
     }
 
     fn index_var(&mut self, tok: &Token, idx_expr: &Expr) -> Result<MutRc<Literal>, InterpreterError> {
@@ -325,10 +326,11 @@ impl InterpreterContext {
             },
             Expr::IdentIndexed(tok, idx_expr) => self.index_var(tok, idx_expr),
             Expr::BuiltInCall(tok, args) => exec_built_in(self, tok, args),
-            Expr::FuncCall(func_name, args_exprs) => exec_func_call(self, func_name, args_exprs),
+            Expr::FuncCall(func_name, args_exprs) => self.exec_func(func_name, args_exprs),
             Expr::ListInstantiation(tok, capacity, init_exprs) => exec_list_instantiation(self, tok, capacity, init_exprs),
-            Expr::RecordInstantiation(record_name, field_exprs) => exec_record_instantiation(self, record_name, field_exprs),
+            Expr::RecordInstantiation(record_name, field_exprs) => self.instance_record(record_name, field_exprs),
             Expr::RecordFieldDeref(record_tok, field_toks) => exec_record_field_deref(self, record_tok, field_toks),
+            Expr::LambdaInstantiation(lambda_tok, arg_toks, body_expr) => self.instance_lambda(lambda_tok, arg_toks, body_expr),
         }
     }
 
@@ -380,6 +382,11 @@ impl InterpreterContext {
         } else {
             return Err(InterpreterError::RecordNotDeclared(record_name.clone()));
         }
+    }
+
+    fn instance_lambda(&mut self, lambda_tok: &Token, arg_toks: &Vec<Token>, body_expr: &Expr) -> Result<MutRc<Literal>, InterpreterError> {
+        self.get_curr_scope_mut().lambdas.push(Func::new_lambda(lambda_tok, arg_toks, body_expr));
+        Ok(mut_rc(Literal::LambdaInstance(lambda_tok.clone())))
     }
 
     fn record_field_defef(&mut self, record_tok: &Token, record_lit: MutRc<Literal>, field_toks: &Vec<Token>, current_tok_idx: usize) -> Result<MutRc<Literal>, InterpreterError> {

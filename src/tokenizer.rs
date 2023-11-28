@@ -26,12 +26,14 @@ pub enum TokenKind {
     GreaterThan,
     Bang,
     Dot,
+    Backslash,
 
     // composite tokens
     LessOrEqual,
     GreaterOrEqual,
     NotEqual,
     EqualsEquals,
+    Arrow,
 
     // reserved keywords
     Func,
@@ -89,10 +91,12 @@ impl Display for TokenKind {
             GreaterThan => ">",
             Bang => "!",
             Dot => ".",
+            Backslash => "\\",
             LessOrEqual => "<=",
             GreaterOrEqual => ">=",
             NotEqual => "!=",
             EqualsEquals => "==",
+            Arrow => "=>",
             Func => "func",
             Start => "start",
             End => "end",
@@ -340,6 +344,7 @@ fn parse_one_symbol_token(c: char) -> TokenKind {
         '>' => TokenKind::GreaterThan,
         '!' => TokenKind::Bang,
         '.' => TokenKind::Dot,
+        '\\' => TokenKind::Backslash,
         _ => unreachable!(),
     }
 }
@@ -350,6 +355,7 @@ fn parse_composite(first_char: char, second_char: char) -> Option<TokenKind> {
         ('<', '=') => Some(TokenKind::LessOrEqual),
         ('>', '=') => Some(TokenKind::GreaterOrEqual),
         ('=', '=') => Some(TokenKind::EqualsEquals),
+        ('=', '>') => Some(TokenKind::Arrow),
         _ => None,
     }
 }

@@ -30,8 +30,9 @@ LogicExpr   => CompExpr { LOGIC_OP CompExpr }
 CompExpr    => AddExpr { COMP_OP AddExpr }
 AddExpr     => MultExpr { ADD_OP MultExpr }
 MultExpr    => Factor { MULT_OP Factor }
-Factor      => [ UNARY_OP ] IDENT { "." IDENT } | IDENT "[" Expr "]" | Primary | "(" Expr ")"
+Factor      => [ UNARY_OP ] IDENT { "." IDENT } | IDENT "[" Expr "]" | Primary | "(" Expr ")" | Lambda
 Primary     => INT | FLOAT | STRING | BOOL | CHAR
+Lambda      => "\" {IDENT} "=>" Expr
 BuiltIn     => "print" | "println" | "dbg" | "readfile" | "writefile" | "appendfile" | "len" | "import"
 ```
 

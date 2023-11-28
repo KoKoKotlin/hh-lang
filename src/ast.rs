@@ -34,6 +34,7 @@ pub enum Expr {
     ListInstantiation(Token, Box<Expr>, Vec<Expr>),
     RecordInstantiation(Token, Vec<Expr>),
     RecordFieldDeref(Token, Vec<Token>),
+    LambdaInstantiation(Token, Vec<Token>, Box<Expr>),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -45,6 +46,7 @@ pub enum Literal {
     Char(char),
     List(Vec<MutRc<Literal>>),
     RecordInstance(Token, Vec<MutRc<Literal>>),
+    LambdaInstance(Token),
     Unit,
 }
 
@@ -64,6 +66,7 @@ impl Literal {
             Literal::Bool(val) => *val,
             Literal::Char(c) => *c != '\0',
             Literal::RecordInstance(_, _) => true,
+            Literal::LambdaInstance(_) => true,
             Literal::Unit => false,
         }
     }
@@ -108,6 +111,7 @@ impl Literal {
             Literal::Char(_) => "Char",
             Literal::List(_) => "List",
             Literal::RecordInstance(_, _) => "RecordInstance",
+            Literal::LambdaInstance(_) => "LambdaInstance",
             Literal::Unit => "Unit",
         }
     }

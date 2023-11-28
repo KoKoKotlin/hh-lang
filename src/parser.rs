@@ -431,6 +431,9 @@ impl Parser {
                 
                 return Ok(Expr::Ident(ident));
             },
+            Some(Backslash) => {
+                return self.lambda();
+            }
             Some(kind) if UNARY_OPERATORS.contains(&kind) => {
                 let op = self.consume(&UNARY_OPERATORS).ok_or(())?;
                 let factor = self.factor()?;
@@ -442,6 +445,18 @@ impl Parser {
                 return Err(());
             },
         }
+    }
+
+    fn lambda(&mut self) -> Result<Expr, ()> {
+        use TokenKind::*;
+
+        self.consume(&[Backslash]).ok_or(())?;
+        let name = self.consume(&[Ident]).ok_or(())?;
+        let args = self.consume_list(Ident, None, Arrow).ok_or(())?;
+        self.consume(&[Arrow]).ok_or(())?;
+        let expr = self.expr()?;
+
+        Ok(Expr::LambdaInstantiation(name, args, Box::new(expr)))
     }
 
     fn primary(&mut self) -> Result<Literal, ()> {
