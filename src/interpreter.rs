@@ -344,7 +344,6 @@ impl InterpreterContext {
     }
 
     fn get_func(&self, func_name: &Token) -> Option<Func> {
-        println!("{:?}", self.get_curr_scope().lambdas);
         for lambda in self.get_curr_scope().lambdas.iter() {
             if lambda.name.symbols == func_name.symbols { return Some(lambda.clone()); }
         }
