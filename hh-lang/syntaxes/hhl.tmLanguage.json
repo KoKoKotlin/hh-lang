@@ -25,7 +25,7 @@
 		"keywords": {
 			"patterns": [{
 				"name": "keyword.control.hhl",
-				"match": "\\b(if|while|return|do|var|let|end|start|func|call|else|true|false|then|record|new|and|or|xor|invoke)\\b"
+				"match": "\\b(if|while|return|do|var|let|end|start|func|call|else|true|false|then|record|new|and|or|xor|invoke|break|continue)\\b"
 			}]
 		},
 		"strings": {
