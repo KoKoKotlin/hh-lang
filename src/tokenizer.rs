@@ -557,7 +557,6 @@ impl Tokenizer {
                         TokenKind::String | TokenKind::Char => unescape(&self.source_code[start..end]),
                         _ => String::from(&self.source_code[start..end]),
                     };
-                    println!("{:?}", symbols);
 
                     let token = Token::new(
                         self.current_loc.clone(), 
