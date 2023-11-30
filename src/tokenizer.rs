@@ -474,6 +474,30 @@ fn bool_(char_iter: Chars) -> (usize, Option<TokenKind>) {
     }
 }
 
+fn unescape(slice: &str) -> String {
+    let mut buf = String::new();
+    let mut iter = slice.chars();
+
+    while let Some(c) = iter.next() {
+        if c == '\\' {
+            match iter.next() {
+                Some('n') => buf.push('\n'),
+                Some('t') => buf.push('\t'),
+                Some('r') => buf.push('\r'),
+                Some('\\') => buf.push('\\'),
+                Some('\'') => buf.push('\''),
+                Some('\"') => buf.push('\"'),
+                Some(c) => buf.push(c),
+                None => buf.push('\\'),
+            }
+        } else {
+            buf.push(c);
+        }
+    }
+
+    buf
+}
+
 impl Tokenizer {
     pub fn new(source_code: String) -> Self {
         Self {
@@ -529,11 +553,17 @@ impl Tokenizer {
                         (self.current_pointer, self.current_pointer+len)
                     };
 
+                    let symbols = match kind {
+                        TokenKind::String | TokenKind::Char => unescape(&self.source_code[start..end]),
+                        _ => String::from(&self.source_code[start..end]),
+                    };
+                    println!("{:?}", symbols);
+
                     let token = Token::new(
                         self.current_loc.clone(), 
                         self.current_pointer,
                         kind, 
-                        self.source_code[start..end].to_owned());                
+                        symbols);                
                     self.current_pointer += len;
                     self.current_loc.col += len;
                     return Some(token);
