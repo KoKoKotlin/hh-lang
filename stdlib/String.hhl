@@ -26,3 +26,74 @@ func str_join list sep start
 
     return result;
 end
+
+func split str char start
+    var parts, i, current;
+    parts = call dl_create 10;
+
+    i = 0;
+    current = "";
+    while i < (len str) do
+        if str[i] == char then
+            call dl_push parts current;
+            current = "";
+        else
+            current = current + str[i];
+        end
+
+        i = i + 1;
+    end
+
+    call dl_push parts current;
+
+    return parts;
+end
+
+func lines str start
+    return (call split str '\n'); 
+end
+
+func trim_front str start
+    var i, start_saving = false, result = "";
+
+    i = 0;
+    while i < (len str) do
+        if !start_saving and (str[i] != '\n') and (str[i] != '\t') and (str[i] != ' ') then
+            start_saving = true;
+            continue;
+        end
+
+        if start_saving then
+            result = result + str[i];
+        end
+
+        i = i + 1;
+    end
+
+    return result;
+end
+
+func trim_back str start
+    var end_idx, i, result = "";
+
+    i = (len str) - 1;
+    while i >= 0 do
+        if (str[i] != '\n') and (str[i] != '\t') and (str[i] != ' ') then
+            break;
+        end
+        i = i - 1;
+    end
+    end_idx = i;
+
+    i = 0;
+    while i <= end_idx do
+        result = result + str[i];
+        i = i + 1;
+    end
+
+    return result;
+end
+
+func trim str start
+    return (call trim_front (call trim_back str));
+end
