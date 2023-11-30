@@ -53,13 +53,13 @@ fn main() {
     }
 
     if args.tokens {
-        let mut tokenizer = tokenizer::Tokenizer::new(source_code.clone());
+        let mut tokenizer = tokenizer::Tokenizer::new(source_code.clone(), args.file.clone());
         while let Some(token) = tokenizer.next_token() {
             println!("{:?}", token);
         }    
     }
 
-    let mut parser = parser::Parser::new(&source_code);
+    let mut parser = parser::Parser::new(&source_code, args.file.clone());
     let ast_root = parser.parse();
 
     if let Ok(ast_root) = ast_root {

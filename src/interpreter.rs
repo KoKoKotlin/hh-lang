@@ -496,8 +496,9 @@ impl InterpreterContext {
             scope.is_continuing = v;
         }
     }
-    fn import(&mut self, source_code: &str) -> InterpreterResult {
-        let mut parser = Parser::new(&source_code);
+    
+    fn import(&mut self, source_code: &str, filename: String) -> InterpreterResult {
+        let mut parser = Parser::new(&source_code, filename);
         let ast_root = parser.parse();
 
         if let Ok(ast_root) = ast_root {
@@ -859,10 +860,10 @@ fn exec_built_in(context: &mut InterpreterContext, tok: &Token, args: &Vec<Expr>
             let file_path = args[0].borrow().clone();
             match file_path {
                 Literal::String(file_path) => {
-                    let file_content = fs::read_to_string(file_path)
+                    let file_content = fs::read_to_string(&file_path)
                         .map_err(|err| InterpreterError::BuiltInError(tok.clone(), format!("{}", err)))?;
 
-                    context.import(&file_content)?;
+                    context.import(&file_content, file_path.clone())?;
                 },
                 _ => return Err(InterpreterError::ValueError(tok.clone(), format!("File path must be String not {}!", file_path.get_type()))),
             }

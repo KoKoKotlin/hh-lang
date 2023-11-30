@@ -57,8 +57,8 @@ const BUILT_INS: [TokenKind; 9] = [
 ];
 
 impl Parser {
-    pub fn new(source_code: &str) -> Self {
-        let mut tokenizer = Tokenizer::new(source_code.to_owned());
+    pub fn new(source_code: &str, filename: String) -> Self {
+        let mut tokenizer = Tokenizer::new(source_code.to_owned(), filename);
         let look_ahead = tokenizer.next_token();
         Self { 
             tokenizer,

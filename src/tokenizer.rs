@@ -140,18 +140,12 @@ impl Display for TokenKind {
 pub struct Location {
     row: usize,
     col: usize,
-    // TODO: filename
-}
-
-impl Location {
-    pub fn new(row: usize, col: usize) -> Self {
-        Self { row, col }
-    }
+    filename: String,
 }
 
 impl Display for Location {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}:{}", self.row, self.col)
+        write!(f, "{}:{}:{}", self.filename, self.row, self.col)
     }
 }
 
@@ -505,11 +499,11 @@ fn unescape(slice: &str) -> String {
 }
 
 impl Tokenizer {
-    pub fn new(source_code: String) -> Self {
+    pub fn new(source_code: String, filename: String) -> Self {
         Self {
             source_code,
             current_pointer: 0,
-            current_loc: Location { row: 1, col: 1 },
+            current_loc: Location { row: 1, col: 1, filename },
             rules: vec![
                 TokenizerRule { name: "Whitespace", rule: Box::new(whitespace) },
                 TokenizerRule { name: "Comment",    rule: Box::new(comment) },
