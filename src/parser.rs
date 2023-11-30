@@ -354,7 +354,7 @@ impl Parser {
         match self.peek() {
             Some(kind) if LOGICAL_OPERATOR.contains(&kind) => {
                 let operand = self.consume(&LOGICAL_OPERATOR).ok_or(())?;
-                let right = self.comp_expr()?;
+                let right = self.expr()?;
                 
                 return Ok(Expr::Binary(Box::new(left), operand, Box::new(right)));
             }
@@ -370,7 +370,7 @@ impl Parser {
         match self.peek() {
             Some(kind) if COMPARISON_OPERATORS.contains(&kind) => {
                 let operand = self.consume(&COMPARISON_OPERATORS).ok_or(())?;
-                let right = self.add_expr()?;
+                let right = self.expr()?;
                 
                 return Ok(Expr::Binary(Box::new(left), operand, Box::new(right)));
             }
@@ -386,7 +386,7 @@ impl Parser {
         match self.peek() {
             Some(kind) if ADDITIVE_OPERATORS.contains(&kind) => {
                 let operand = self.consume(&ADDITIVE_OPERATORS).ok_or(())?;
-                let right = self.mult_expr()?;
+                let right = self.expr()?;
                 
                 return Ok(Expr::Binary(Box::new(left), operand, Box::new(right)));
             }
@@ -402,7 +402,7 @@ impl Parser {
         match self.peek() {
             Some(kind) if MULITPLICATIVE_OPERATORS.contains(&kind) => {
                 let operand = self.consume(&MULITPLICATIVE_OPERATORS).ok_or(())?;
-                let right = self.factor()?;
+                let right = self.expr()?;
                 
                 return Ok(Expr::Binary(Box::new(left), operand, Box::new(right)));
             }

@@ -65,7 +65,7 @@ fn main() {
     if let Ok(ast_root) = ast_root {
         let (err, context) = interprete_ast(ast_root);
         if args.context {
-            println!("{:?}", context);
+            println!("{:#?}", context);
         }
         match &err {
             Err(err) => println!("{}", err.info()),

@@ -452,8 +452,8 @@ fn ident(char_iter: Chars) -> (usize, Option<TokenKind>) {
 fn char_(char_iter: Chars) -> (usize, Option<TokenKind>) {
     for (idx, c) in char_iter.enumerate() {
         if idx == 0 && c != '\'' { return (0, None); }
-        else if idx == 2 && c == '\'' { return (3, Some(TokenKind::Char)); }
-        else if idx > 2 { return (0, None) };
+        else if (idx == 2 || idx == 3) && c == '\'' { return (idx+1, Some(TokenKind::Char)); }
+        else if idx > 3 { return (0, None) };
     }
 
     (0, None)
