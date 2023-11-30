@@ -1,0 +1,19 @@
+
+# creating a lambda expression and assigning it to a variable
+# there are 2 semicolons at the end of the line because the body of the lambda expression is a statement which requires a the semicolon
+# and the semicolon after the lambda expression is required because it is an expression itself
+# the identifiers behind the backslash are the arguments of the lambda expression
+var l1;
+l1 = \a => println a;;
+
+var l2;
+l2 = \a => return a;;
+
+println invoke l1 "Hello, World!";
+println invoke l2 "Hello, World!";
+
+# you can also use lambda expression as arguments to a function
+# depending on the content of the body, you may have to put parentheses around the lambda expression
+var l;
+l = (call filter (call map ([5](1, 2, 3, 4, 5)) \a => return a * 2;) \a => return a % 4 != 0;);
+
