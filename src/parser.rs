@@ -109,6 +109,8 @@ impl Parser {
             Func => self.func()?,
             Record => self.record()?,
             Return => self.return_()?,
+            Break => self.break_()?,
+            Continue => self.continue_()?,
             // if all else fails try to parse the next statement as a standalone expression
             _ => {
                 let expr = self.expr()?;
@@ -174,6 +176,23 @@ impl Parser {
         return Ok(Statement::Return(return_expr));
     }
 
+    fn break_(&mut self) -> Result<Statement, ()> {
+        use TokenKind::*;
+
+        let break_token = self.consume(&[Break]).ok_or(())?;
+        self.consume(&[Semicolon]).ok_or(())?;
+
+        return Ok(Statement::Break(break_token));
+    }
+
+    fn continue_(&mut self) -> Result<Statement, ()> {
+        use TokenKind::*;
+
+        let continue_token = self.consume(&[Continue]).ok_or(())?;
+        self.consume(&[Semicolon]).ok_or(())?;
+
+        return Ok(Statement::Continue(continue_token));
+    }
 
     fn func(&mut self) -> Result<Statement, ()> {
         use TokenKind::*;

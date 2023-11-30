@@ -17,6 +17,8 @@ Statement   => IDENT { "." IDENT } "=" Expr ";" |
             "func" IDENT {IDENT} "start" Block "end" |
             "record" "start" IDENT "end" |
             "return" Expr ";" |
+            "break" ";" |
+            "continue" ";" |
             Expr ";"
 Expr        => LogicExpr |
             FuncCall |
@@ -71,12 +73,15 @@ There are 2 special macros, that are directly hardcoded into the preprocessor.
   - `writefile`: first argument: file path, second argument: object. Writes the objects string repr into the given file. When the file does not exists, it creates the file. Return: `()`
   - `appendfile`: first argument: file path, second argument: object. Writes the objects string repr into the given file appending to existing text. When the file does not exists, it creates the file. Return: `()`
   - `len`: Takes one argument and returns its length if its an container type. Return: `Int`
-  - `import`: Takes a file path as string as its only argument and tries executing the file at the given path. The symbols from the loaded file are then accessable in the file that called import. Return: `()``
+  - `import`: Takes a file path as string as its only argument and tries executing the file at the given path. The symbols from the loaded file are then accessable in the file that called import. Return: `()`
+  - `to_string`: Takes one argument of arbitrary type and outputs its string representation. Return: `string`
 
 ### TODO:
   - for loop
   - remove *.borrow().clone() by using get_type with another enum variant Type
+  - make and, or, xor lower presedence than != and ==
 
 ### BUGS:
   - when passing list literals behind idents in func argument list, then the parser thinks the len expr of the list is an indexing of the ident
   - grammar issues when using calls and builtins inside of argument lists or conditions => root problem with expr_list
+  - allow break, continue, return only in appropriate context

@@ -19,6 +19,8 @@ pub enum Statement {
     FuncDecl(Token, Vec<Token>, Block),
     RecordDecl(Token, Vec<Token>),
     Return(Expr),
+    Break(Token),
+    Continue(Token),
     Expr(Expr),
 }
 

@@ -55,6 +55,8 @@ pub enum TokenKind {
     New,
     Return,
     Invoke,
+    Break,
+    Continue,
 
     // built-in functions
     Print,
@@ -114,6 +116,8 @@ impl Display for TokenKind {
             Then => "then",
             Let => "let",
             Var => "var",
+            Break => "break",
+            Continue => "continue",
             Print => "Built-In Print",
             Println => "Built-In Pritnln",
             Call => "call",
@@ -413,6 +417,8 @@ pub fn parse_ident(slice: &str) -> TokenKind {
         "then" => TokenKind::Then,
         "let" => TokenKind::Let,
         "var" => TokenKind::Var,
+        "break" => TokenKind::Break,
+        "continue" => TokenKind::Continue,
         "print" => TokenKind::Print,
         "println" => TokenKind::Println,
         "call" => TokenKind::Call,

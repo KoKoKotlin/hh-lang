@@ -1,4 +1,4 @@
-use std::{rc::Rc, cell::RefCell, fs, borrow::BorrowMut};
+use std::{rc::Rc, cell::RefCell, fs, borrow::BorrowMut, ops::ControlFlow};
 use crate::{ast::{Program, Literal, Block, Statement, Expr}, tokenizer::{Token, TokenKind, Location}, parser::Parser};
 
 pub type MutRc<T> = Rc<RefCell<T>>;
@@ -11,6 +11,8 @@ pub fn mut_rc<T>(t: T) -> MutRc<T> {
 struct Scope {
     names: Vec<Name>,
     is_returning: bool,
+    is_breaking: bool,
+    is_continuing: bool,
 }
 
 impl Scope {
@@ -21,9 +23,9 @@ impl Scope {
             for (token, lit) in init.into_iter() {
                 names.push(Name::make_var(&token.symbols, Some(lit.clone())));
             }            
-            Self { names, is_returning: false }
+            Self { names, is_returning: false, is_breaking: false, is_continuing: false }
         } else {
-            Self { names: vec![], is_returning: false }
+            Self { names: vec![], is_returning: false, is_breaking: false, is_continuing: false }
         }
     }
 
@@ -461,12 +463,39 @@ impl InterpreterContext {
         }
     }
 
+    fn is_breaking(&self) -> bool {
+        if let Some(scope) = self.scope_stack.last() {
+            scope.is_breaking
+        } else {
+            false
+        }
+    }
+
+    fn is_continuing(&self) -> bool {
+        if let Some(scope) = self.scope_stack.last() {
+            scope.is_continuing
+        } else {
+            false
+        }
+    }
+
     fn start_returning(&mut self) {
         if let Some(scope) = self.scope_stack.last_mut() {
             scope.is_returning = true;
         }
     }
 
+    fn set_breaking(&mut self, v: bool) {
+        if let Some(scope) = self.scope_stack.last_mut() {
+            scope.is_breaking = v;
+        }
+    }
+
+    fn set_continuing(&mut self, v: bool) {
+        if let Some(scope) = self.scope_stack.last_mut() {
+            scope.is_continuing = v;
+        }
+    }
     fn import(&mut self, source_code: &str) -> InterpreterResult {
         let mut parser = Parser::new(&source_code);
         let ast_root = parser.parse();
@@ -741,6 +770,15 @@ fn exec_while(context: &mut InterpreterContext, cond_expr: &Expr, block: &Block)
             return Ok(maybe_return_val);
         }
 
+        if context.is_breaking() {
+            context.set_breaking(false);
+            break;
+        }
+
+        if context.is_continuing() {
+            context.set_continuing(false);
+        }
+
         cond = context.eval(cond_expr)?;
     }
 
@@ -869,7 +907,7 @@ fn exec_block(context: &mut InterpreterContext, block: &Block) -> Result<MutRc<L
             Statement::VarDecl(decls) => exec_var_decl(context, decls)?,
             Statement::If(cond, if_block, else_block) => {
                 let maybe_return_val = exec_if(context, cond, if_block, else_block.as_ref())?;
-                if context.is_returning() {
+                if context.is_returning() || context.is_breaking() || context.is_continuing() {
                     return Ok(maybe_return_val);
                 }
             },
@@ -885,6 +923,14 @@ fn exec_block(context: &mut InterpreterContext, block: &Block) -> Result<MutRc<L
             Statement::Return(expr) => {
                 context.start_returning();
                 return Ok(context.eval(expr)?);
+            },
+            Statement::Break(_tok) => {
+                context.set_breaking(true);
+                return Ok(mut_rc(Literal::Unit));
+            },
+            Statement::Continue(_tok) => {
+                context.set_continuing(true);
+                return Ok(mut_rc(Literal::Unit));
             },
         }
     }
