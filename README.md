@@ -87,4 +87,3 @@ There are 2 special macros, that are directly hardcoded into the preprocessor.
   - grammar issues when using calls and builtins inside of argument lists or conditions => root problem with expr_list
   - allow break, continue, return only in appropriate context
   - interpreter has problems when dealing with scopes and reassigns => has something to do with using calls as function arguments
-  - println (call substr "two3fdgjkhkg34two" 4 7): tokenizer error "4 "

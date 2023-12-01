@@ -312,6 +312,7 @@ fn number(mut char_iter: Chars) -> (usize, Option<TokenKind>) {
             (skip + tok_len, Some(TokenKind::Int)) 
         },
         NumberParseMode::DecOrFloat => { 
+            if skip == 1 { return (1, Some(TokenKind::Int)); }
             let (size, maybe_kind) = dec_or_float(&mut char_iter, point_in_prefix);
             (skip + size, maybe_kind)
         },
