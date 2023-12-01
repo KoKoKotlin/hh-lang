@@ -68,6 +68,7 @@ pub enum TokenKind {
     Len,
     Import,
     ToString,
+    ParseInt,
 }
 
 impl Display for TokenKind {
@@ -132,6 +133,7 @@ impl Display for TokenKind {
             Len => "Built-In len",
             Import => "import",
             ToString => "Built-In to_string",
+            ParseInt => "Built-In parse_int",
         })
     }
 }
@@ -427,6 +429,7 @@ pub fn parse_ident(slice: &str) -> TokenKind {
         "import" => TokenKind::Import,
         "invoke" => TokenKind::Invoke,
         "to_string" => TokenKind::ToString,
+        "parse_int" => TokenKind::ParseInt,
         _ => TokenKind::Ident,
     }
 }

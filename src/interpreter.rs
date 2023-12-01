@@ -7,7 +7,7 @@ pub fn mut_rc<T>(t: T) -> MutRc<T> {
     Rc::new(RefCell::new(t))
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Scope {
     names: Vec<Name>,
     is_returning: bool,
@@ -60,7 +60,7 @@ impl Scope {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Name {
     name: String,
     value: Option<MutRc<Literal>>,
@@ -122,7 +122,7 @@ impl Record {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct InterpreterContext {
     record_decls: Vec<Record>,
     func_decls: Vec<Func>,
@@ -912,6 +912,19 @@ fn exec_built_in(context: &mut InterpreterContext, tok: &Token, args: &Vec<Expr>
             let arg = args[0].borrow().clone();
             return Ok(mut_rc(Literal::String(arg.to_string())));
         },
+        ParseInt => {
+            let args = get_args(context, tok, 1, args)?;
+            let arg = args[0].borrow().clone();
+            return match arg {
+                Literal::String(str) => {
+                    match str.parse::<i64>() {
+                        Ok(int) => Ok(mut_rc(Literal::Int(int))),
+                        Err(err) => Err(InterpreterError::ValueError(tok.clone(), format!("{} is not a valid integer! Reason: {}", str, err))),
+                    }
+                },
+                _ => Err(InterpreterError::ValueError(tok.clone(), format!("Expected String got {}!", arg.get_type())))
+            };
+        }
         _ => unimplemented!("BuiltIn {:?} not implemented yet", tok.kind),
     }
 

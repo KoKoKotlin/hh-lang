@@ -1,4 +1,5 @@
-import "stdlib/Option.hhl";
+import "Option.hhl";
+import "DynList.hhl";
 
 func str_find string char start
     var i = 0;
