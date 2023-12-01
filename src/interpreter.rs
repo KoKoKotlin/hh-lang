@@ -1,5 +1,5 @@
-use std::{rc::Rc, cell::RefCell, fs, borrow::BorrowMut, ops::ControlFlow, path::{Path, PathBuf}, fmt::format};
-use crate::{ast::{Program, Literal, Block, Statement, Expr}, tokenizer::{Token, TokenKind, Location}, parser::Parser};
+use std::{rc::Rc, cell::RefCell, fs, path::{Path, PathBuf}};
+use crate::{ast::{Program, Literal, Block, Statement, Expr}, tokenizer::{Token, TokenKind}, parser::Parser};
 
 pub type MutRc<T> = Rc<RefCell<T>>;
 
@@ -9,6 +9,7 @@ pub fn mut_rc<T>(t: T) -> MutRc<T> {
 
 #[derive(Debug, Clone)]
 struct Scope {
+    _func_name: Option<Token>,
     names: Vec<Name>,
     is_returning: bool,
     is_breaking: bool,
@@ -16,16 +17,16 @@ struct Scope {
 }
 
 impl Scope {
-    fn new(init: Option<Vec<(&Token, MutRc<Literal>)>>) -> Self {
+    fn new(func_name: Option<&Token>, init: Option<Vec<(&Token, MutRc<Literal>)>>) -> Self {
         if let Some(init) = init {
             let mut names = vec![];
 
             for (token, lit) in init.into_iter() {
                 names.push(Name::make_var(&token.symbols, Some(lit.clone())));
             }            
-            Self { names, is_returning: false, is_breaking: false, is_continuing: false }
+            Self { _func_name: func_name.map(|f| f.clone()), names, is_returning: false, is_breaking: false, is_continuing: false }
         } else {
-            Self { names: vec![], is_returning: false, is_breaking: false, is_continuing: false }
+            Self { _func_name: func_name.map(|f| f.clone()), names: vec![], is_returning: false, is_breaking: false, is_continuing: false }
         }
     }
 
@@ -210,7 +211,7 @@ impl InterpreterContext {
     pub fn new(additional_include_paths: Vec<String>) -> Self {
         let mut include_path = vec![STANDARD_INCLUDE_PATH.to_owned()];
         include_path.extend(additional_include_paths);
-        Self { global_scope: Scope::new(None), record_decls: vec![], func_decls: vec![], scope_stack: vec![], include_path }
+        Self { global_scope: Scope::new(None, None), record_decls: vec![], func_decls: vec![], scope_stack: vec![], include_path }
     }
 
     fn create_var(&mut self, tok: &Token, lit: Option<MutRc<Literal>>) {
@@ -410,10 +411,11 @@ impl InterpreterContext {
                 .collect();
             let args_lits = args_lits?;
 
-            let func_scope = Scope::new(Some(func.args.iter().zip(args_lits.into_iter()).collect()));
+            let func_scope = Scope::new(Some(func_name), Some(func.args.iter().zip(args_lits.into_iter()).collect()));
             self.scope_stack.push(func_scope);
             let return_val = exec_block(self, &func.code)?;
-            let _ = self.scope_stack.pop();
+            let _val = self.scope_stack.pop();
+
             return Ok(return_val);
         } else {
             return Err(InterpreterError::FunctionNotDeclared(func_name.clone()));
@@ -430,7 +432,7 @@ impl InterpreterContext {
             .collect();
         let args_lits = args_lits?;
 
-        let func_scope = Scope::new(Some(arg_toks.iter().zip(args_lits.into_iter()).collect()));
+        let func_scope = Scope::new(Some(invoke_tok), Some(arg_toks.iter().zip(args_lits.into_iter()).collect()));
         self.scope_stack.push(func_scope);
         let return_val = exec_block(self, &Block(vec![body.clone()]))?;
         let _ = self.scope_stack.pop();
@@ -572,6 +574,12 @@ impl InterpreterContext {
             return Err(InterpreterError::ImportError(format!("Parser error")));
         }
         
+    }
+
+    fn print_stack_trace(&self) {
+        for scope in self.scope_stack.iter().rev() {
+            println!("{}", &scope._func_name.as_ref().unwrap());
+        }
     }
 }
 
@@ -731,10 +739,7 @@ fn exec_reassign(context: &mut InterpreterContext, tok: &Token, field_toks: &Vec
     }
 
     let result = context.eval(expr);
-    let name = context.get_name(tok).unwrap_or_else(|| {
-        println!("{}: {}", tok.symbols, tok.loc);
-        panic!()
-    });
+    let name = context.get_name(tok).unwrap();
 
     if name.is_const() {
         return Err(InterpreterError::ConstantReassign(tok.clone()));
@@ -778,7 +783,7 @@ fn exec_var_decl(context: &mut InterpreterContext, decls: &Vec<(Token, Option<Ex
             Some(expr) => Some(context.eval(expr)?),
             None => None,
         };
-
+        
         let lits = lit.clone().map(|lit| lit);
         context.create_var(tok, lits);
     }

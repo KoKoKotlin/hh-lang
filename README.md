@@ -86,9 +86,5 @@ There are 2 special macros, that are directly hardcoded into the preprocessor.
   - when passing list literals behind idents in func argument list, then the parser thinks the len expr of the list is an indexing of the ident
   - grammar issues when using calls and builtins inside of argument lists or conditions => root problem with expr_list
   - allow break, continue, return only in appropriate context
-  - var line_list = call dl_to_list (call lines s):
-    - thread 'main' panicked at src/interpreter.rs:709:38:
-    - called `Option::unwrap()` on a `None` value
-    - probably reassigning function args causes problems
+  - interpreter has problems when dealing with scopes and reassigns => has something to do with using calls as function arguments
   - println (call substr "two3fdgjkhkg34two" 4 7): tokenizer error "4 "
-  - interpreter has problems when dealing with scopes and reassigns
