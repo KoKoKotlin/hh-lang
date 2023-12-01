@@ -98,3 +98,51 @@ end
 func trim str start
     return (call trim_front (call trim_back str));
 end
+
+func is_digit c start
+    return (c == '0') or (c == '1') or (c == '2') 
+    or (c == '3') or (c == '4') or (c == '5') 
+    or (c == '6') or (c == '7') or (c == '8') 
+    or (c == '9');
+end
+
+func substr s start_idx end_idx start
+    var result = "";
+    var i = start_idx;
+    while i < end_idx do
+        result = result + s[i];
+        i = i + 1;
+    end
+
+    return result;
+end
+
+func replace s pat replace_pat start
+    var result = "";
+
+    var i = 0;
+    var curr;
+    while i <= (len s) - (len pat) do
+        curr = call substr s i (i + len pat);
+
+        if curr != pat then
+            result = result + s[i];
+            i = i + 1; 
+        end
+
+        if curr == pat then
+            result = result + replace_pat;
+            i = i + (len pat);
+            continue;
+        end
+    end
+
+    if i < (len s) then
+        while i < (len s) do
+            result = result + s[i];
+            i = i + 1;
+        end
+    end
+
+    return result;
+end
