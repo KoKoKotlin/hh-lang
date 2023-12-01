@@ -261,7 +261,7 @@ impl Parser {
     fn var_decl(&mut self) -> Result<Statement, ()> {
         use TokenKind::*;
         
-        let mut var_decls: Vec<(Token, Option<Literal>)> = vec![];
+        let mut var_decls: Vec<(Token, Option<Expr>)> = vec![];
         self.consume(&[Var]).ok_or(())?;
         
         loop {
@@ -269,7 +269,7 @@ impl Parser {
             let literal = match self.look_ahead.as_ref() {
                 Some(token) => if token.kind == Equals {
                     self.consume(&[Equals]).ok_or(())?;
-                    let literal = self.primary()?;
+                    let literal = self.expr()?;
                     Some(literal)
                 } else {
                     None

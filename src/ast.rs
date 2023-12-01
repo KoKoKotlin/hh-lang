@@ -13,7 +13,7 @@ pub enum Statement {
     Reassign(Token, Vec<Token>, Expr),
     ListReassign(Token, Expr, Expr),
     ConstAssign(Vec<(Token, Literal)>),
-    VarDecl(Vec<(Token, Option<Literal>)>),
+    VarDecl(Vec<(Token, Option<Expr>)>),
     If(Expr, Block, Option<Block>),
     While(Expr, Block),
     FuncDecl(Token, Vec<Token>, Block),

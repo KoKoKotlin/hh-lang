@@ -8,7 +8,7 @@ For usage see the example folder.
 ```
 Program     => [ Block ]
 Block       => [ "let" IDENT "=" Primary {, IDENT "=" Primary } ";" ] |
-            [ "var" IDENT { "=" Primary } {, IDENT {"=" Primary}} ";" ] |
+            [ "var" IDENT { "=" Expr } {, IDENT {"=" Expr }} ";" ] |
             [ Statement ]
 Statement   => IDENT { "." IDENT } "=" Expr ";" |
             IDENT "[" Expr "]" "=" Expr ";" |

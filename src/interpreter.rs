@@ -744,9 +744,14 @@ fn exec_const_assign(context: &mut InterpreterContext, assigns: &Vec<(Token, Lit
     Ok(())
 }
 
-fn exec_var_decl(context: &mut InterpreterContext, decls: &Vec<(Token, Option<Literal>)>) -> InterpreterResult {
-    for (tok, lit) in decls {
-        let lits = lit.clone().map(|lit| mut_rc(lit));
+fn exec_var_decl(context: &mut InterpreterContext, decls: &Vec<(Token, Option<Expr>)>) -> InterpreterResult {
+    for (tok, expr) in decls {
+        let lit = match expr {
+            Some(expr) => Some(context.eval(expr)?),
+            None => None,
+        };
+
+        let lits = lit.clone().map(|lit| lit);
         context.create_var(tok, lits);
     }
 
