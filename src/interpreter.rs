@@ -224,23 +224,17 @@ impl InterpreterContext {
     }
 
     fn get_name(&mut self, tok: &Token) -> Option<&mut Name> {
-        let global_name = self.global_scope.get_name(tok);
         let scope = self.scope_stack.last_mut();
 
-        let scope = match scope {
-            Some(s) => s,
-            None => return global_name,
-        };
-
-        let scope_name = scope.get_name(tok);
-        if scope_name.is_some() { scope_name } else { global_name }
-    }
-
-    fn get_curr_scope(&self) -> &Scope {
-        if let Some(scope) = self.scope_stack.last() {
-            scope
-        } else {
-            &self.global_scope
+        match scope {
+            Some(s) => {
+                if s.name_exists(tok) {
+                    s.get_name(tok)
+                } else {
+                    self.global_scope.get_name(tok)
+                }
+            },
+            None => return self.global_scope.get_name(tok),
         }
     }
 
@@ -253,12 +247,29 @@ impl InterpreterContext {
     }
 
     fn name_exists(&self, tok: &Token) -> bool {
-        self.get_curr_scope().name_exists(tok)
+        let scope = self.scope_stack.last();
+
+        match scope {
+            Some(s) => s.name_exists(tok) || self.global_scope.name_exists(tok),
+            None => return self.global_scope.name_exists(tok),
+        }
     }
 
     fn get_var_value(&self, tok: &Token) -> Result<MutRc<Literal>, InterpreterError> {
         if !self.name_exists(tok) { return Err(InterpreterError::VariableDoesNotExists(tok.clone())) };
-        self.get_curr_scope().get_var_value(tok)
+
+        let scope = self.scope_stack.last();
+
+        match scope {
+            Some(s) => {
+                if s.name_exists(tok) {
+                    s.get_var_value(tok)
+                } else {
+                    self.global_scope.get_var_value(tok)
+                }
+            },
+            None => return self.global_scope.get_var_value(tok),
+        }
     }
 
     fn index_var(&mut self, tok: &Token, idx_expr: &Expr) -> Result<MutRc<Literal>, InterpreterError> {
