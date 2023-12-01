@@ -1,4 +1,4 @@
-use std::{rc::Rc, cell::RefCell, fs, borrow::BorrowMut, ops::ControlFlow};
+use std::{rc::Rc, cell::RefCell, fs, borrow::BorrowMut, ops::ControlFlow, path::{Path, PathBuf}, fmt::format};
 use crate::{ast::{Program, Literal, Block, Statement, Expr}, tokenizer::{Token, TokenKind, Location}, parser::Parser};
 
 pub type MutRc<T> = Rc<RefCell<T>>;
@@ -128,6 +128,7 @@ pub struct InterpreterContext {
     func_decls: Vec<Func>,
     global_scope: Scope,
     scope_stack: Vec<Scope>,
+    include_path: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -147,7 +148,7 @@ pub enum InterpreterError {
     RecordFieldCount(Token),
     RecordFieldDoesNotExist(Token, Token),
     BuiltInError(Token, String),
-    ImportError(),
+    ImportError(String),
 }
 
 impl InterpreterError {
@@ -183,17 +184,21 @@ impl InterpreterError {
                 format!("Field {} does not exist in record {} at {}!", field_tok.symbols, record_tok.symbols, field_tok.loc),
             InterpreterError::BuiltInError(name_tok, err_str) => 
                 format!("Error during execution of built in function {} at {}: Reason: {}", name_tok.symbols, name_tok.loc, err_str),
-            InterpreterError::ImportError() => 
-                format!("Error during import!"),
+            InterpreterError::ImportError(reason) => 
+                format!("Error during import! Reason: {}", reason),
         }
     }
 }
 
 pub type InterpreterResult = Result<(), InterpreterError>;
 
+const STANDARD_INCLUDE_PATH: &'static str = "/usr/local/lib/hh-stdlib";
+
 impl InterpreterContext {
-    pub fn new() -> Self {
-        Self { global_scope: Scope::new(None), record_decls: vec![], func_decls: vec![], scope_stack: vec![] }
+    pub fn new(additional_include_paths: Vec<String>) -> Self {
+        let mut include_path = vec![STANDARD_INCLUDE_PATH.to_owned()];
+        include_path.extend(additional_include_paths);
+        Self { global_scope: Scope::new(None), record_decls: vec![], func_decls: vec![], scope_stack: vec![], include_path }
     }
 
     fn create_var(&mut self, tok: &Token, lit: Option<MutRc<Literal>>) {
@@ -497,6 +502,34 @@ impl InterpreterContext {
         }
     }
     
+    fn search_file_in_path(&self, file_name: &str) -> Result<String, InterpreterError> {
+        let path = Path::new(file_name);
+        if path.exists() {
+            if path.is_file() {
+                return Ok(file_name.to_owned())
+            } else {
+                return Err(InterpreterError::ImportError(format!("{} is not a file.", file_name)));
+            }
+        }
+
+        for path in self.include_path.iter() {
+            let mut path_buf = PathBuf::new();
+            path_buf.push(path);
+            
+            if !path_buf.exists() {
+                println!("Warning: {} added to include path is not an existing path.", path_buf.display());
+                continue;
+            }
+
+            path_buf.push(file_name);
+            if path_buf.exists() {
+                return Ok(path_buf.to_str().unwrap().to_owned())
+            }
+        }
+
+        Err(InterpreterError::ImportError(format!("{} does not exist.", file_name)))
+    }
+
     fn import(&mut self, source_code: &str, filename: String) -> InterpreterResult {
         let mut parser = Parser::new(&source_code, filename);
         let ast_root = parser.parse();
@@ -511,7 +544,7 @@ impl InterpreterContext {
 
             Ok(())
         } else {
-            return Err(InterpreterError::ImportError());
+            return Err(InterpreterError::ImportError(format!("Parser error")));
         }
         
     }
@@ -860,10 +893,11 @@ fn exec_built_in(context: &mut InterpreterContext, tok: &Token, args: &Vec<Expr>
             let file_path = args[0].borrow().clone();
             match file_path {
                 Literal::String(file_path) => {
-                    let file_content = fs::read_to_string(&file_path)
+                    let complete_path = context.search_file_in_path(&file_path)?;
+                    let file_content = fs::read_to_string(&complete_path)
                         .map_err(|err| InterpreterError::BuiltInError(tok.clone(), format!("{}", err)))?;
 
-                    context.import(&file_content, file_path.clone())?;
+                    context.import(&file_content, complete_path.clone())?;
                 },
                 _ => return Err(InterpreterError::ValueError(tok.clone(), format!("File path must be String not {}!", file_path.get_type()))),
             }
@@ -939,8 +973,8 @@ fn exec_block(context: &mut InterpreterContext, block: &Block) -> Result<MutRc<L
     Ok(mut_rc(Literal::Unit))
 }
 
-pub fn interprete_ast(root_node: Program) -> (InterpreterResult, InterpreterContext) {
-    let mut context = InterpreterContext::new();
+pub fn interprete_ast(root_node: Program, include_path: Vec<String>) -> (InterpreterResult, InterpreterContext) {
+    let mut context = InterpreterContext::new(include_path);
 
     for block in root_node.0 {
         match exec_block(&mut context, &block) {

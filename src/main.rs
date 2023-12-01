@@ -20,6 +20,8 @@ struct Args {
     preprocessor: bool,
     #[arg(short, long)]
     context: bool,
+    #[arg(short, long)]
+    add_includes: Vec<String>,
 
     file: String,
 }
@@ -63,7 +65,7 @@ fn main() {
     let ast_root = parser.parse();
 
     if let Ok(ast_root) = ast_root {
-        let (err, context) = interprete_ast(ast_root);
+        let (err, context) = interprete_ast(ast_root, args.add_includes);
         if args.context {
             println!("{:#?}", context);
         }
