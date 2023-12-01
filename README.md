@@ -92,5 +92,4 @@ There are 2 special macros, that are directly hardcoded into the preprocessor.
     - called `Option::unwrap()` on a `None` value
     - probably reassigning function args causes problems
   - println (call substr "two3fdgjkhkg34two" 4 7): tokenizer error "4 "
-  - interpreter doesn't recognize redeclerations <- keeps old value!
   - interpreter has problems when dealing with scopes and reassigns

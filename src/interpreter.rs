@@ -58,6 +58,18 @@ impl Scope {
     fn push(&mut self, name: Name) {
         self.names.push(name);
     }
+
+    fn delete_name(&mut self, tok: &Token) {
+        let mut found_idx: Option<usize> = None;
+        for (idx, name) in self.names.iter().enumerate() {
+            if name.name == tok.symbols {
+                found_idx = Some(idx);
+                break;
+            }
+        }
+
+        found_idx.map(|idx| self.names.remove(idx));
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -202,10 +214,12 @@ impl InterpreterContext {
     }
 
     fn create_var(&mut self, tok: &Token, lit: Option<MutRc<Literal>>) {
+        self.get_curr_scope_mut().delete_name(tok);
         self.get_curr_scope_mut().push(Name::make_var(&tok.symbols, lit));
     }
 
     fn create_const(&mut self, tok: &Token, lit: MutRc<Literal>) {
+        self.get_curr_scope_mut().delete_name(tok);
         self.get_curr_scope_mut().push(Name::make_const(&tok.symbols, lit));
     }
 
@@ -706,7 +720,10 @@ fn exec_reassign(context: &mut InterpreterContext, tok: &Token, field_toks: &Vec
     }
 
     let result = context.eval(expr);
-    let name = context.get_name(tok).unwrap();
+    let name = context.get_name(tok).unwrap_or_else(|| {
+        println!("{}: {}", tok.symbols, tok.loc);
+        panic!()
+    });
 
     if name.is_const() {
         return Err(InterpreterError::ConstantReassign(tok.clone()));
