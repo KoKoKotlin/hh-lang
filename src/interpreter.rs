@@ -368,7 +368,7 @@ impl InterpreterContext {
                 let operand = self.eval(&operand)?;
                 apply_unary(op, operand).map(|lit| mut_rc(lit))
             }
-            Expr::Literal(lit) => Ok(lit.clone()),
+            Expr::Literal(lit) => Ok(mut_rc(lit.borrow().clone())),
             Expr::Ident(tok) => {
                 self.get_var_value(tok)
             },
