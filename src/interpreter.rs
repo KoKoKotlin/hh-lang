@@ -361,6 +361,13 @@ impl InterpreterContext {
         match expr {
             Expr::Binary(left, op, right) => {
                 let left = self.eval(&left)?;
+                
+                // short curcuiting for and and or
+                match op.kind {
+                    TokenKind::And if !left.borrow().is_truthy() => return Ok(mut_rc(false.into())),
+                    TokenKind::Or if left.borrow().is_truthy() => return Ok(mut_rc(true.into())),
+                    _ => {},
+                }
                 let right = self.eval(&right)?;
                 apply_op(op, left, &op.kind, right).map(|lit| mut_rc(lit))
             },

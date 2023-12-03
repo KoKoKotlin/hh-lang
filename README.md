@@ -78,11 +78,9 @@ There are 2 special macros, that are directly hardcoded into the preprocessor.
   - `to_string`: Takes one argument of arbitrary type and outputs its string representation. Return: `string`
 
 ### TODO:
-  - for loop
   - remove *.borrow().clone() by using get_type with another enum variant Type
   - make and, or, xor lower presedence than != and ==
   - namespaces for import
-  - short circuiting for logic expr
   - goto or labeled loops and break/continue statements
 
 ### BUGS:
