@@ -9,8 +9,16 @@ pub struct Program(pub Vec<Block>);
 pub struct Block(pub Vec<Statement>);
 
 #[derive(Debug, Clone)]
+pub struct Reassign {
+    pub name_tok: Token,
+    pub op_tok: Token,
+    pub record_fields: Vec<Token>,
+    pub assign_expr: Expr,
+}
+
+#[derive(Debug, Clone)]
 pub enum Statement {
-    Reassign(Token, Vec<Token>, Expr),
+    Reassign(Reassign),
     ListReassign(Token, Expr, Expr),
     ConstAssign(Vec<(Token, Literal)>),
     VarDecl(Vec<(Token, Option<Expr>)>),

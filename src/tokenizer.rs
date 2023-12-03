@@ -35,6 +35,11 @@ pub enum TokenKind {
     NotEqual,
     EqualsEquals,
     Arrow,
+    PlusEqual,
+    MinusEqual,
+    TimesEqual,
+    DivEqual,
+    PercentEqual,
 
     // reserved keywords
     Func,
@@ -71,6 +76,18 @@ pub enum TokenKind {
     ParseInt,
 }
 
+pub fn to_operator(tok_kind: &TokenKind) -> Option<TokenKind> {
+    use TokenKind::*;
+    match tok_kind {
+        PlusEqual => Some(Plus),
+        MinusEqual => Some(Minus),
+        TimesEqual => Some(Times),
+        DivEqual => Some(Div),
+        PercentEqual => Some(Percent),
+        _ => None,
+    }
+}
+
 impl Display for TokenKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use TokenKind::*;
@@ -104,6 +121,11 @@ impl Display for TokenKind {
             NotEqual => "!=",
             EqualsEquals => "==",
             Arrow => "=>",
+            PlusEqual => "+=",
+            MinusEqual => "-=",
+            TimesEqual => "*=",
+            DivEqual => "/=",
+            PercentEqual => "%=",
             Func => "func",
             Start => "start",
             End => "end",
@@ -370,6 +392,11 @@ fn parse_composite(first_char: char, second_char: char) -> Option<TokenKind> {
         ('>', '=') => Some(TokenKind::GreaterOrEqual),
         ('=', '=') => Some(TokenKind::EqualsEquals),
         ('=', '>') => Some(TokenKind::Arrow),
+        ('+', '=') => Some(TokenKind::PlusEqual),
+        ('-', '=') => Some(TokenKind::MinusEqual),
+        ('*', '=') => Some(TokenKind::TimesEqual),
+        ('/', '=') => Some(TokenKind::DivEqual),
+        ('%', '=') => Some(TokenKind::PercentEqual),
         _ => None,
     }
 }

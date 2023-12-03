@@ -1,6 +1,6 @@
 use std::num::ParseIntError;
 
-use crate::{tokenizer::{Tokenizer, TokenKind, Token}, ast::{Expr, Literal, Block, Statement, Program}, interpreter::mut_rc};
+use crate::{tokenizer::{Tokenizer, TokenKind, Token}, ast::{Expr, Literal, Block, Statement, Program, Reassign}, interpreter::mut_rc};
 
 type IntParser = Box<dyn Fn(&str) -> Result<i64, ParseIntError>>;
 
@@ -55,6 +55,15 @@ const BUILT_INS: [TokenKind; 10] = [
     TokenKind::Import,
     TokenKind::ToString,
     TokenKind::ParseInt,
+];
+
+const ASSIGN_OPERATORS: [TokenKind; 6] = [
+    TokenKind::Equals,
+    TokenKind::PlusEqual,
+    TokenKind::MinusEqual,
+    TokenKind::TimesEqual,
+    TokenKind::DivEqual,
+    TokenKind::PercentEqual,
 ];
 
 impl Parser {
@@ -315,22 +324,26 @@ impl Parser {
                     idents.push(self.consume(&[Ident]).ok_or(())?);
                 }
 
-                self.consume(&[Equals]).ok_or(())?;
+                let op = self.consume(&ASSIGN_OPERATORS).ok_or(())?;
                 let expr = self.expr()?;
                 self.consume(&[Semicolon]).ok_or(())?;
 
-                return Ok(Statement::Reassign(ident, idents, expr));
-            }
-            Some(Equals) => {
-                self.consume(&[Equals]).ok_or(())?;
+                let reassign = Reassign { name_tok: ident, op_tok: op, record_fields: idents, assign_expr: expr };
+                return Ok(Statement::Reassign(reassign));
+            },
+            Some(kind) if ASSIGN_OPERATORS.contains(&kind) => {
+                let op = self.consume(&ASSIGN_OPERATORS).ok_or(())?;
                 let expr = self.expr()?;
                 self.consume(&[Semicolon]).ok_or(())?;
                 
-                Ok(Statement::Reassign(ident, vec![], expr))
+                let reassign = Reassign { name_tok: ident, op_tok: op, record_fields: vec![], assign_expr: expr };
+                return Ok(Statement::Reassign(reassign));
             },
             _ => {
                 let tok = self.get();
-                consume_error(self, tok.as_ref(), &[Equals, OpeningBracket]);
+                let mut expected = vec![OpeningBracket, Dot];
+                expected.extend(ASSIGN_OPERATORS);
+                consume_error(self, tok.as_ref(), &expected);
                 Err(())
             },
         }

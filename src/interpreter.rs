@@ -1,5 +1,5 @@
 use std::{rc::Rc, cell::RefCell, fs, path::{Path, PathBuf}};
-use crate::{ast::{Program, Literal, Block, Statement, Expr}, tokenizer::{Token, TokenKind}, parser::Parser};
+use crate::{ast::{Program, Literal, Block, Statement, Expr, Reassign}, tokenizer::{Token, TokenKind, to_operator}, parser::Parser};
 
 pub type MutRc<T> = Rc<RefCell<T>>;
 
@@ -362,7 +362,7 @@ impl InterpreterContext {
             Expr::Binary(left, op, right) => {
                 let left = self.eval(&left)?;
                 let right = self.eval(&right)?;
-                apply_op(left, op, right).map(|lit| mut_rc(lit))
+                apply_op(op, left, &op.kind, right).map(|lit| mut_rc(lit))
             },
             Expr::Unary(op, operand) => {
                 let operand = self.eval(&operand)?;
@@ -603,14 +603,14 @@ fn apply_unary(op: &Token, operand: MutRc<Literal>) -> Result<Literal, Interpret
     }
 }
 
-fn apply_op(left: MutRc<Literal>, op: &Token, right: MutRc<Literal>) -> Result<Literal, InterpreterError> {
+fn apply_op(op: &Token, left: MutRc<Literal>, op_kind: &TokenKind, right: MutRc<Literal>) -> Result<Literal, InterpreterError> {
     use TokenKind::*;
 
     // TODO for better performance don't clone
     let left = left.borrow().clone();
     let right = right.borrow().clone();
 
-    return match op.kind {
+    return match op_kind {
         Plus => {
             match (&left, &right) {
                 (Literal::Int(left), Literal::Int(right)) => Ok((left + right).into()),
@@ -733,29 +733,55 @@ fn apply_op(left: MutRc<Literal>, op: &Token, right: MutRc<Literal>) -> Result<L
     }
 }
 
-fn exec_reassign(context: &mut InterpreterContext, tok: &Token, field_toks: &Vec<Token>, expr: &Expr) -> InterpreterResult {
-    if !context.name_exists(tok) {
-        return Err(InterpreterError::VariableDoesNotExists(tok.clone()));
+fn exec_reassign(context: &mut InterpreterContext, reassign: &Reassign) -> InterpreterResult {
+    if !context.name_exists(&reassign.name_tok) {
+        return Err(InterpreterError::VariableDoesNotExists(reassign.name_tok.clone()));
     }
 
-    let result = context.eval(expr);
-    let name = context.get_name(tok).unwrap_or_else(|| {
-        eprintln!("Couldn't find name despite it being existent. This is an interpreter bug! Name: {}: {}", tok, tok.loc);
+    let result = context.eval(&reassign.assign_expr);
+    let name = context.get_name(&reassign.name_tok).unwrap_or_else(|| {
+        eprintln!("Couldn't find name despite it being existent. This is an interpreter bug! Name: {}: {}", reassign.name_tok, reassign.name_tok.loc);
         panic!()
     });
 
     if name.is_const() {
-        return Err(InterpreterError::ConstantReassign(tok.clone()));
+        return Err(InterpreterError::ConstantReassign(reassign.name_tok.clone()));
     }
 
-    if field_toks.len() == 0 {
-        name.value = Some(result?);
+    if reassign.record_fields.len() == 0 {
+        match reassign.op_tok.kind {
+            TokenKind::Equals => name.value = Some(result?),
+            _ => {
+                let op_kind   = to_operator(&reassign.op_tok.kind)
+                    .expect("The parser makes sure that the kind is only a valid assign operator.");
+                let left = name.value.as_ref();
+                let right = result?;
+                
+                if left.is_none() {
+                    return Err(InterpreterError::VariableNotInitialized(reassign.name_tok.clone()));
+                }
+
+                let result = mut_rc(apply_op(&reassign.op_tok, left.unwrap().clone(), &op_kind, right)?);
+                name.value = Some(result);
+            }
+        }
     } else {
         if let Some(record_lit) = name.value.clone() {
-            let record_deref = context.record_field_defef(tok, record_lit, field_toks, 0)?;
-            record_deref.replace(result?.borrow().clone());
+            let record_deref = context.record_field_defef(&reassign.name_tok, record_lit, &reassign.record_fields, 0)?;
+            match reassign.op_tok.kind {
+                TokenKind::Equals => { let _ = record_deref.replace(result?.borrow().clone()); },
+                _ => {
+                    let op_kind   = to_operator(&reassign.op_tok.kind)
+                        .expect("The parser makes sure that the kind is only a valid assign operator.");
+                    let left = record_deref.borrow().clone();
+                    let right = result?;
+                    
+                    let result = mut_rc(apply_op(&reassign.op_tok, mut_rc(left), &op_kind, right)?);
+                    record_deref.replace(result.borrow().clone());
+                }
+            }
         } else {
-            return Err(InterpreterError::VariableNotInitialized(tok.clone()));
+            return Err(InterpreterError::VariableNotInitialized(reassign.name_tok.clone()));
         }
     }
 
@@ -990,7 +1016,7 @@ fn exec_record_field_deref(context: &mut InterpreterContext, record_tok: &Token,
 fn exec_block(context: &mut InterpreterContext, block: &Block) -> Result<MutRc<Literal>, InterpreterError> {
     for statment in block.0.iter() {
         match statment {
-            Statement::Reassign(tok, field_toks, expr) => exec_reassign(context, tok, field_toks, expr)?,
+            Statement::Reassign(reassign) => exec_reassign(context, reassign)?,
             Statement::ListReassign(tok, idx_expr, val_expr) => exec_list_reassign(context, tok, idx_expr, val_expr)?,
             Statement::ConstAssign(assigns) => exec_const_assign(context, assigns)?,
             Statement::VarDecl(decls) => exec_var_decl(context, decls)?,
