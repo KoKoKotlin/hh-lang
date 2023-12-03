@@ -14,6 +14,7 @@ Statement   => IDENT { "." IDENT } { "+" | "-" | "*" | "/" | "%" }"=" Expr ";" |
             IDENT "[" Expr "]" "=" Expr ";" |
             "if" Expr "then" Block {"else" Block} "end" |
             "while" Expr "do" Block "end" |
+            "for" Ident "=" Expr";" Expr "do" Block ";" Statement "end" |
             "func" IDENT {IDENT} "start" Block "end" |
             "record" "start" IDENT "end" |
             "return" Expr ";" |

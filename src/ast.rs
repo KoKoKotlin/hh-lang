@@ -17,6 +17,15 @@ pub struct Reassign {
 }
 
 #[derive(Debug, Clone)]
+pub struct For {
+    pub ident_tok: Token,
+    pub init_expr: Expr,
+    pub loop_statement: Statement,
+    pub cond: Expr,
+    pub body: Block,
+}
+
+#[derive(Debug, Clone)]
 pub enum Statement {
     Reassign(Reassign),
     ListReassign(Token, Expr, Expr),
@@ -24,6 +33,7 @@ pub enum Statement {
     VarDecl(Vec<(Token, Option<Expr>)>),
     If(Expr, Block, Option<Block>),
     While(Expr, Block),
+    For(Box<For>),
     FuncDecl(Token, Vec<Token>, Block),
     RecordDecl(Token, Vec<Token>),
     Return(Expr),

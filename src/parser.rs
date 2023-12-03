@@ -1,6 +1,6 @@
 use std::num::ParseIntError;
 
-use crate::{tokenizer::{Tokenizer, TokenKind, Token}, ast::{Expr, Literal, Block, Statement, Program, Reassign}, interpreter::mut_rc};
+use crate::{tokenizer::{Tokenizer, TokenKind, Token}, ast::{Expr, Literal, Block, Statement, Program, Reassign, For}, interpreter::mut_rc};
 
 type IntParser = Box<dyn Fn(&str) -> Result<i64, ParseIntError>>;
 
@@ -116,6 +116,7 @@ impl Parser {
             Ident => self.reassign()?,
             If => self.fi()?,
             While => self.elihw()?,
+            For => self.rof()?,
             Func => self.func()?,
             Record => self.record()?,
             Return => self.return_()?,
@@ -174,6 +175,24 @@ impl Parser {
         self.consume(&[End]).ok_or(())?;
         
         return Ok(Statement::While(condition, block));
+    }
+    
+    fn rof(&mut self) -> Result<Statement, ()> {
+        use TokenKind::*;
+
+        self.consume(&[For]).ok_or(())?;
+        let ident_tok = self.consume(&[Ident]).ok_or(())?;
+        self.consume(&[Equals]).ok_or(())?;
+        let init_expr = self.expr()?;
+        self.consume(&[Semicolon]).ok_or(())?;
+        let cond = self.expr()?;
+        self.consume(&[Semicolon]).ok_or(())?;
+        let loop_statement = self.statement()?;
+        self.consume(&[Do]).ok_or(())?;
+        let body = self.block()?;
+        self.consume(&[End]).ok_or(())?;
+
+        Ok(Statement::For(Box::new(crate::ast::For { ident_tok, init_expr, loop_statement, cond, body })))
     }
 
     fn return_(&mut self) -> Result<Statement, ()> {
@@ -653,7 +672,7 @@ fn consume_error(parser: &Parser, token: Option<&Token>, token_kinds: &[TokenKin
     };
 
     match token {
-        Some(t) => eprintln!("Expected {} but got {} at {}.\nContext:\n{}", token_desc, t, t.loc, parser.tokenizer.get_context(t.index)),
+        Some(t) => eprintln!("Expected {} but got {} at {}\nContext:\n{}", token_desc, t, t.loc, parser.tokenizer.get_context(t.index)),
         None => eprintln!("Expected {} but no tokens are left!", token_desc),
     }
 }

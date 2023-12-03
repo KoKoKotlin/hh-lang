@@ -1,5 +1,5 @@
 use std::{rc::Rc, cell::RefCell, fs, path::{Path, PathBuf}};
-use crate::{ast::{Program, Literal, Block, Statement, Expr, Reassign}, tokenizer::{Token, TokenKind, to_operator}, parser::Parser};
+use crate::{ast::{Program, Literal, Block, Statement, Expr, Reassign, For}, tokenizer::{Token, TokenKind, to_operator}, parser::Parser};
 
 pub type MutRc<T> = Rc<RefCell<T>>;
 
@@ -886,6 +886,34 @@ fn exec_while(context: &mut InterpreterContext, cond_expr: &Expr, block: &Block)
     Ok(mut_rc(Literal::Unit))
 }
 
+fn exec_for(context: &mut InterpreterContext, for_statement: &Box<For>) -> Result<MutRc<Literal>, InterpreterError> {
+    let init_lit = context.eval(&for_statement.init_expr)?;
+    context.create_var(&for_statement.ident_tok, Some(init_lit));
+
+    let mut cond = context.eval(&for_statement.cond)?;
+    while cond.borrow().is_truthy() {
+        let maybe_return_val = exec_block(context, &for_statement.body.clone())?;
+        
+        if context.is_returning() {
+            return Ok(maybe_return_val);
+        }
+
+        if context.is_breaking() {
+            context.set_breaking(false);
+            break;
+        }
+
+        if context.is_continuing() {
+            context.set_continuing(false);
+        }
+
+        exec_block(context, &Block(vec![for_statement.loop_statement.clone()]))?;
+        cond = context.eval(&for_statement.cond)?;
+    }
+    
+    Ok(mut_rc(Literal::Unit))
+}
+
 fn get_args(context: &mut InterpreterContext, tok: &Token, expected_count: usize, args: &Vec<Expr>) -> Result<Vec<MutRc<Literal>>, InterpreterError> {
     if args.len() != expected_count {
         return Err(InterpreterError::CallArgumentCount(tok.clone()));
@@ -1028,6 +1056,12 @@ fn exec_block(context: &mut InterpreterContext, block: &Block) -> Result<MutRc<L
             },
             Statement::While(cond, block) => {
                 let maybe_return_val = exec_while(context, cond, block)?;
+                if context.is_returning() {
+                    return Ok(maybe_return_val);
+                }
+            },
+            Statement::For(for_statement) => {
+                let maybe_return_val = exec_for(context, for_statement)?;
                 if context.is_returning() {
                     return Ok(maybe_return_val);
                 }
