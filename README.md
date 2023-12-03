@@ -10,7 +10,7 @@ Program     => [ Block ]
 Block       => [ "let" IDENT "=" Primary {, IDENT "=" Primary } ";" ] |
             [ "var" IDENT { "=" Expr } {, IDENT {"=" Expr }} ";" ] |
             [ Statement ]
-Statement   => IDENT { "." IDENT } "=" Expr ";" |
+Statement   => IDENT { "." IDENT } { "+" | "-" | "*" | "/" | "%" }"=" Expr ";" |
             IDENT "[" Expr "]" "=" Expr ";" |
             "if" Expr "then" Block {"else" Block} "end" |
             "while" Expr "do" Block "end" |
