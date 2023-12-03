@@ -81,9 +81,12 @@ There are 2 special macros, that are directly hardcoded into the preprocessor.
   - remove *.borrow().clone() by using get_type with another enum variant Type
   - make and, or, xor lower presedence than != and ==
   - namespaces for import
+  - short circuiting for logic expr
+  - goto or labeled loops and break/continue statements
 
 ### BUGS:
   - when passing list literals behind idents in func argument list, then the parser thinks the len expr of the list is an indexing of the ident
   - grammar issues when using calls and builtins inside of argument lists or conditions => root problem with expr_list
   - allow break, continue, return only in appropriate context
   - interpreter has problems when dealing with scopes and reassigns => has something to do with using calls as function arguments
+  - same scoping bug when using func calls in binary expressions

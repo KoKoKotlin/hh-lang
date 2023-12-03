@@ -739,7 +739,10 @@ fn exec_reassign(context: &mut InterpreterContext, tok: &Token, field_toks: &Vec
     }
 
     let result = context.eval(expr);
-    let name = context.get_name(tok).unwrap();
+    let name = context.get_name(tok).unwrap_or_else(|| {
+        eprintln!("Couldn't find name despite it being existent. This is an interpreter bug! Name: {}: {}", tok, tok.loc);
+        panic!()
+    });
 
     if name.is_const() {
         return Err(InterpreterError::ConstantReassign(tok.clone()));
