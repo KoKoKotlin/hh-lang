@@ -82,6 +82,7 @@ There are 2 special macros, that are directly hardcoded into the preprocessor.
   - make and, or, xor lower presedence than != and ==
   - namespaces for import
   - goto or labeled loops and break/continue statements
+  - lambda should have access to containing scope
 
 ### BUGS:
   - when passing list literals behind idents in func argument list, then the parser thinks the len expr of the list is an indexing of the ident

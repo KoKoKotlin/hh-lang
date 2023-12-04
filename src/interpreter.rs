@@ -322,26 +322,26 @@ impl InterpreterContext {
                 }
                 
                 let value = name.value.as_ref().unwrap().clone();
-                match &*value.borrow() {
+                let mut value_ = value.borrow_mut();
+        
+                match &mut *(value_) {
                     Literal::List(values) => {
                         if idx as usize >= values.len() {
                             return Err(InterpreterError::IndexOutOfBounds(tok.clone()));
                         }
 
-                        values[idx as usize].replace(result.borrow().clone());
+                        values[idx as usize] = mut_rc(result.borrow().clone());
                         return Ok(());
                     },
                     Literal::String(s) => {
                         if idx as usize >= s.len() {
                             return Err(InterpreterError::IndexOutOfBounds(tok.clone()));
                         }
-
-                        let mut s = s.clone();
+                       
                         match result.borrow().clone() {
                             Literal::Char(c) => { 
                                 s.remove(idx as usize); 
                                 s.insert(idx as usize, c);
-                                name.value = Some(mut_rc(Literal::String(s)));
                             },
                             _ => return Err(InterpreterError::TypeError(tok.clone(), "Indices must be Number".to_string())),
                         }
