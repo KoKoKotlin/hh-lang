@@ -1,6 +1,6 @@
 #!/bin/sh
 
-set -xe
+set -x
 
 cp hh-lang $HOME/.vscode/extensions -r
 
