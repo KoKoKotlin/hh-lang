@@ -71,3 +71,13 @@ func dl_to_list dl start
 
     return new_list;
 end
+
+func dl_contains dl elem start
+    var list = dl.list;
+    for i = 0; i < (dl.current); i += 1; do
+        if list[i] == elem then
+            return true;
+        end
+    end
+    return false;
+end
