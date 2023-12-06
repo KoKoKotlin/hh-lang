@@ -1,0 +1,46 @@
+func min x y start
+    if x < y then
+        return x;
+    else
+        return y;
+    end
+end
+
+func max x y start
+    if x > y then
+        return x;
+    else
+        return y;
+    end
+end
+
+func sqrt x start
+    if x < 0.0 then
+        println "Warn: Trying to take sqrt of ", x, "!";
+        return -1.0;
+    end
+
+    x *= 1.0;
+    var lo = (call min 1.0 x), hi = (call max 1.0 x), mid;
+
+    while (100 * lo * lo) < x do
+        lo *= 10.0;
+    end
+    while ((0.01 * hi * hi) > x) do
+        hi *= 0.1;
+    end
+
+    for i = 0; i < 100; i += 1; do
+        mid = (lo + hi)/2.0;
+        if (mid * mid) == x then
+            return mid;
+        end
+        if (mid * mid) > x then
+            hi = mid;
+        else
+            lo = mid;
+        end
+    end
+
+    return mid;
+end
