@@ -44,7 +44,7 @@ const MULITPLICATIVE_OPERATORS: [TokenKind; 3] = [
     TokenKind::Percent,
 ];
 
-const BUILT_INS: [TokenKind; 10] = [
+const BUILT_INS: [TokenKind; 12] = [
     TokenKind::Print,
     TokenKind::Println,
     TokenKind::Dbg,
@@ -55,6 +55,8 @@ const BUILT_INS: [TokenKind; 10] = [
     TokenKind::Import,
     TokenKind::ToString,
     TokenKind::ParseInt,
+    TokenKind::Floor,
+    TokenKind::Ceil,
 ];
 
 const ASSIGN_OPERATORS: [TokenKind; 6] = [

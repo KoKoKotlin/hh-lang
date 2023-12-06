@@ -642,7 +642,7 @@ fn apply_op(op: &Token, left: MutRc<Literal>, op_kind: &TokenKind, right: MutRc<
         Times => {
             match (&left, &right) {
                 (Literal::Int(left), Literal::Int(right)) => Ok((left * right).into()),
-                (Literal::Int(left), Literal::Float(right)) => Ok((*left as f64 + right).into()),
+                (Literal::Int(left), Literal::Float(right)) => Ok((*left as f64 * right).into()),
                 (Literal::Float(left), Literal::Int(right)) => Ok((left * *right as f64).into()),
                 (Literal::Float(left), Literal::Float(right)) => Ok((left * right).into()),
                 _ => Err(InterpreterError::UndefinedBinOperation(left.clone(), op.clone(), right.clone())),
@@ -1021,7 +1021,27 @@ fn exec_built_in(context: &mut InterpreterContext, tok: &Token, args: &Vec<Expr>
                 },
                 _ => Err(InterpreterError::ValueError(tok.clone(), format!("Expected String got {}!", arg.get_type())))
             };
-        }
+        },
+        Floor => {
+            let args = get_args(context, tok, 1, args)?;
+            let arg = args[0].borrow().clone();
+            return match arg {
+                Literal::Float(f) => {
+                    Ok(mut_rc((f.floor() as i64).into()))
+                },
+                _ => Err(InterpreterError::ValueError(tok.clone(), format!("Expected String got {}!", arg.get_type())))
+            };
+        },
+        Ceil => {
+            let args = get_args(context, tok, 1, args)?;
+            let arg = args[0].borrow().clone();
+            return match arg {
+                Literal::Float(f) => {
+                    Ok(mut_rc((f.ceil() as i64).into()))
+                },
+                _ => Err(InterpreterError::ValueError(tok.clone(), format!("Expected String got {}!", arg.get_type())))
+            };
+        },
         _ => unimplemented!("BuiltIn {:?} not implemented yet", tok.kind),
     }
 

@@ -76,6 +76,8 @@ pub enum TokenKind {
     Import,
     ToString,
     ParseInt,
+    Floor,
+    Ceil,
 }
 
 pub fn to_operator(tok_kind: &TokenKind) -> Option<TokenKind> {
@@ -160,6 +162,8 @@ impl Display for TokenKind {
             Import => "import",
             ToString => "Built-In to_string",
             ParseInt => "Built-In parse_int",
+            Floor => "Built-In floor",
+            Ceil => "Built-In ceil",
         })
     }
 }
@@ -464,6 +468,8 @@ pub fn parse_ident(slice: &str) -> TokenKind {
         "invoke" => TokenKind::Invoke,
         "to_string" => TokenKind::ToString,
         "parse_int" => TokenKind::ParseInt,
+        "floor" => TokenKind::Floor,
+        "ceil" => TokenKind::Ceil,
         _ => TokenKind::Ident,
     }
 }
