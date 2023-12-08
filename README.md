@@ -78,13 +78,16 @@ There are 2 special macros, that are directly hardcoded into the preprocessor.
   - `to_string`: Takes one argument of arbitrary type and outputs its string representation. Return: `string`
 
 ### TODO:
-  - remove *.borrow().clone() by using get_type with another enum variant Type
+  - remove *.borrow().clone() by using get_type with another enum variant Type => Make ReferenceValues, Values
   - make and, or, xor lower presedence than != and ==
   - namespaces for import
   - goto or labeled loops and break/continue statements
   - lambda should have access to containing scope
+  - better debugging output for `-t` and implement `-a` for outputting the ast
+  - debugger
 
 ### BUGS:
+  - check operator presedence => completely bugged
   - when passing list literals behind idents in func argument list, then the parser thinks the len expr of the list is an indexing of the ident
   - grammar issues when using calls and builtins inside of argument lists or conditions => root problem with expr_list
   - allow break, continue, return only in appropriate context
