@@ -93,3 +93,4 @@ There are 2 special macros, that are directly hardcoded into the preprocessor.
   - allow break, continue, return only in appropriate context
   - interpreter has problems when dealing with scopes and reassigns => has something to do with using calls as function arguments
   - same scoping bug when using func calls in binary expressions
+  - when subtracting 1 (-1) the interpreter actually adds one
