@@ -1019,6 +1019,9 @@ fn exec_built_in(context: &mut InterpreterContext, tok: &Token, args: &Vec<Expr>
                         Err(err) => Err(InterpreterError::ValueError(tok.clone(), format!("{} is not a valid integer! Reason: {}", str, err))),
                     }
                 },
+                Literal::Char(c) => {
+                    Ok(mut_rc(Literal::Int(c as i64)))
+                },
                 _ => Err(InterpreterError::ValueError(tok.clone(), format!("Expected String got {}!", arg.get_type())))
             };
         },
