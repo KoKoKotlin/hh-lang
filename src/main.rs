@@ -1,6 +1,7 @@
 use std::{fs::File, io::Read};
 
 use clap::Parser;
+use hvm::bytecode::{Chunk, Instruction};
 use preprocessor::preprocess;
 
 use crate::interpreter::interprete_ast;
@@ -10,6 +11,7 @@ mod parser;
 mod ast;
 mod interpreter;
 mod preprocessor;
+mod hvm;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -36,6 +38,17 @@ fn load_source_code_file(path: &str) -> std::io::Result<String> {
 }
 
 fn main() {
+    let mut chunk = Chunk::new("test chunk");
+    
+    let constant_idx = chunk.add_constant(69);
+    chunk.code.push(Instruction::Constant.into());
+    chunk.code.push(constant_idx);
+    chunk.code.push(Instruction::Return.into());
+
+    println!("{}", &chunk);
+}
+
+/* fn main() {
     let args = Args::parse();
 
     let mut source_code = load_source_code_file(&args.file).unwrap();
@@ -74,4 +87,4 @@ fn main() {
             _ => {}
         }
     }
-}
+} */
